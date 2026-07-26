@@ -1,0 +1,33 @@
+{
+  "name": "@candle-rush/engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -w -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "tsx test/cross-env.browser.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "esbuild": "^0.24.0",
+    "playwright": "^1.48.0",
+    "tsx": "^4.23.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.3"
+  }
+}

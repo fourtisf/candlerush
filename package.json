@@ -1,0 +1,20 @@
+{
+  "name": "candle-rush",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "build": "pnpm --filter @candle-rush/engine build && pnpm --filter @candle-rush/api build && pnpm --filter @candle-rush/web build",
+    "dev": "pnpm --filter @candle-rush/engine build && pnpm --parallel --filter @candle-rush/api --filter @candle-rush/web dev",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r exec rm -rf dist .next node_modules/.cache"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
