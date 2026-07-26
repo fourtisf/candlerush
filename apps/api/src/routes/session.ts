@@ -1,0 +1,290 @@
+import { randomInt } from 'node:crypto';
+import { ENGINE_VERSION, type CharId, type MapId } from '@candle-rush/engine';
+import type { FastifyPluginAsync } from 'fastify';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { prisma } from '../db.js';
+import { env } from '../env.js';
+import { bump } from '../redis.js';
+import { errorSchema, sessionStartBody, sessionStartReply, sessionSubmitBody, sessionSubmitReply } from '../schemas.js';
+import { append, playerRef, refreshBalanceCache } from '../services/ledger.js';
+import * as lb from '../services/leaderboard.js';
+import { nextHandicap, owns } from '../services/players.js';
+import { ReplayTimeoutError, type AnyReplayPool } from '../services/replay-pool.js';
+
+const OPEN_SESSION_WINDOW_MS = 300_000;
+
+export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
+  return async (app) => {
+    const r = app.withTypeProvider<ZodTypeProvider>();
+    const e = env();
+
+    /**
+     * Issue a session.
+     *
+     * The seed is generated here and only here. A client that picks its own seed can
+     * shop for a favourable chart, and worse, can pre-compute a tape offline for a seed
+     * it has known about for a week.
+     */
+    r.post(
+      '/session/start',
+      {
+        preHandler: app.requireAuth,
+        schema: {
+          body: sessionStartBody,
+          response: { 200: sessionStartReply, 403: errorSchema, 409: errorSchema, 429: errorSchema },
+        },
+      },
+      async (req, reply) => {
+        const player = req.player!;
+        const { mapId, charId } = req.body;
+
+        const perPlayer = await bump(`rl:start:p:${player.id}`, 3600);
+        if (perPlayer > e.SESSION_START_PER_HOUR_PLAYER) {
+          return reply.code(429).send({ error: 'RATE_LIMITED', message: 'Too many sessions this hour.' });
+        }
+        const perIp = await bump(`rl:start:ip:${req.ip}`, 3600);
+        if (perIp > e.SESSION_START_PER_HOUR_IP) {
+          return reply.code(429).send({ error: 'RATE_LIMITED', message: 'Too many sessions from this address.' });
+        }
+
+        // Do not trust the client's claim about what it owns.
+        if (!owns(player, 'map', mapId) || !owns(player, 'char', charId)) {
+          return reply.code(403).send({ error: 'NOT_UNLOCKED', message: 'You do not own that market or trader.' });
+        }
+
+        const cutoff = new Date(Date.now() - OPEN_SESSION_WINDOW_MS);
+        await prisma.session.updateMany({
+          where: { playerId: player.id, status: 'OPEN', issuedAt: { lt: cutoff } },
+          data: { status: 'EXPIRED' },
+        });
+        const live = await prisma.session.findFirst({
+          where: { playerId: player.id, status: 'OPEN', issuedAt: { gte: cutoff } },
+          select: { id: true },
+        });
+        if (live) {
+          return reply
+            .code(409)
+            .send({ error: 'SESSION_OPEN', message: 'Finish or abandon your open session first.', detail: live.id });
+        }
+
+        const seed = randomInt(0, 2 ** 31);
+        const session = await prisma.session.create({
+          data: {
+            playerId: player.id,
+            seed,
+            mapId,
+            charId,
+            handicap: player.handicap,
+            engineVersion: ENGINE_VERSION,
+          },
+        });
+        // Remember the loadout so the hub is server-side state rather than a client claim.
+        if (player.activeChar !== charId || player.activeMap !== mapId) {
+          await prisma.player.update({ where: { id: player.id }, data: { activeChar: charId, activeMap: mapId } });
+        }
+
+        return {
+          sessionId: session.id,
+          seed,
+          engineVersion: ENGINE_VERSION,
+          config: {
+            seed,
+            mapId,
+            charId,
+            handicap: player.handicap,
+            engineVersion: ENGINE_VERSION,
+          },
+          issuedAt: session.issuedAt.toISOString(),
+        };
+      },
+    );
+
+    /**
+     * Submit a tape.
+     *
+     * The body may carry a client score. It is written to the row and never read back
+     * into anything — its only job is to make a determinism break visible before it
+     * becomes a leaderboard dispute.
+     */
+    r.post(
+      '/session/submit',
+      {
+        preHandler: app.requireAuth,
+        schema: {
+          body: sessionSubmitBody,
+          response: {
+            200: sessionSubmitReply,
+            404: errorSchema,
+            409: errorSchema,
+            422: errorSchema,
+            503: errorSchema,
+          },
+        },
+        config: { rateLimit: { max: 40, timeWindow: '1 hour' } },
+      },
+      async (req, reply) => {
+        const player = req.player!;
+        const { sessionId, inputs, clientScore, clientDigest } = req.body;
+
+        const session = await prisma.session.findUnique({ where: { id: sessionId } });
+        if (!session || session.playerId !== player.id) {
+          return reply.code(404).send({ error: 'NO_SESSION', message: 'Unknown session.' });
+        }
+        if (session.status !== 'OPEN') {
+          return reply
+            .code(409)
+            .send({ error: 'ALREADY_SETTLED', message: 'That session has already been submitted.' });
+        }
+
+        const elapsed = Date.now() - session.issuedAt.getTime();
+        const reject = async (code: string, message: string, detail?: string) => {
+          await prisma.session.updateMany({
+            where: { id: session.id, status: 'OPEN' },
+            data: {
+              status: 'REJECTED',
+              submittedAt: new Date(),
+              rejectReason: `${code}: ${detail ?? message}`,
+              clientScore: clientScore ?? null,
+              clientDigest: clientDigest ?? null,
+              inputCount: inputs.length,
+              wallClockMs: elapsed,
+              replay: inputs as unknown as object,
+            },
+          });
+          return reply.code(422).send({ error: code, message, detail });
+        };
+
+        // Too fast is impossible. Too slow means they were computing.
+        if (elapsed < e.SESSION_MIN_ELAPSED_MS) {
+          return reject('TOO_FAST', 'That session finished faster than it can be played.', `${elapsed}ms`);
+        }
+        if (elapsed > e.SESSION_MAX_ELAPSED_MS) {
+          return reject('TOO_SLOW', 'That session took too long to submit.', `${elapsed}ms`);
+        }
+        if (session.engineVersion !== ENGINE_VERSION) {
+          return reject(
+            'ENGINE_VERSION_MISMATCH',
+            'The game was updated while you were playing. That session cannot be scored.',
+            `session ${session.engineVersion}, server ${ENGINE_VERSION}`,
+          );
+        }
+
+        let result;
+        try {
+          result = await pool.run({
+            seed: session.seed,
+            mapId: session.mapId as MapId,
+            charId: session.charId as CharId,
+            handicap: session.handicap,
+            engineVersion: session.engineVersion,
+            inputs,
+          });
+        } catch (err) {
+          if (err instanceof ReplayTimeoutError) {
+            return reject('REPLAY_TIMEOUT', 'That session could not be validated in time.');
+          }
+          req.log.error({ err, sessionId }, 'replay failed');
+          return reply.code(503).send({ error: 'REPLAY_FAILED', message: 'Could not validate that session.' });
+        }
+
+        if (!result.ok) {
+          return reject(result.error ?? 'INVALID_REPLAY', 'That session did not validate.', result.errorDetail);
+        }
+
+        const score = result.score;
+        const flagged = result.inputCount >= 8 && result.inputJitterMs < e.JITTER_FLAG_MS;
+
+        if (clientScore !== undefined && clientScore !== score) {
+          // Not a rejection. This is the canary for determinism drift, and it is supposed
+          // to be loud: if it starts firing across many players, the engine has diverged.
+          req.log.warn(
+            { sessionId, clientScore, serverScore: score, clientDigest, serverDigest: result.digest },
+            'client/server score mismatch',
+          );
+        }
+
+        const settled = await prisma.$transaction(async (tx) => {
+          // The status guard is the concurrency control: only one submission can flip a
+          // session out of OPEN, so only one can reach the ledger write below.
+          const flip = await tx.session.updateMany({
+            where: { id: session.id, status: 'OPEN' },
+            data: {
+              status: 'SUBMITTED',
+              submittedAt: new Date(),
+              serverScore: score,
+              clientScore: clientScore ?? null,
+              clientDigest: clientDigest ?? null,
+              serverDigest: result.digest,
+              candles: result.candles,
+              bestMult: result.bestMult,
+              cleanFlips: result.cleanFlips,
+              inputCount: result.inputCount,
+              inputJitterMs: result.inputJitterMs,
+              frames: result.frames,
+              endReason: result.endReason,
+              wallClockMs: elapsed,
+              replay: inputs as unknown as object,
+            },
+          });
+          if (flip.count === 0) return null;
+
+          if (score > 0) {
+            await append(tx, {
+              playerId: player.id,
+              kind: 'SESSION_PAYOUT',
+              amount: score,
+              refType: 'session',
+              refId: session.id,
+            });
+          }
+
+          const updated = await tx.player.update({
+            where: { id: player.id },
+            data: {
+              totalSessions: { increment: 1 },
+              bestSession: score > player.bestSession ? score : undefined,
+              handicap: nextHandicap(player.handicap, result.candles),
+              flagged: flagged ? true : undefined,
+            },
+          });
+          return updated;
+        });
+
+        if (!settled) {
+          return reply
+            .code(409)
+            .send({ error: 'ALREADY_SETTLED', message: 'That session has already been submitted.' });
+        }
+
+        const balance = await refreshBalanceCache(player.id);
+        if (score > 0) await lb.record(player.id, score);
+        const [daily, alltime] = await Promise.all([
+          lb.rankOf('daily', player.id),
+          lb.rankOf('alltime', player.id),
+        ]);
+
+        if (flagged) {
+          req.log.warn(
+            { playerId: player.id, sessionId, jitter: result.inputJitterMs },
+            'input timing looks automated — flagged for review, not banned',
+          );
+        }
+
+        return {
+          score,
+          credited: score,
+          balance,
+          best: settled.bestSession,
+          isBest: score > player.bestSession,
+          stats: {
+            candles: result.candles,
+            bestMult: result.bestMult,
+            cleanFlips: result.cleanFlips,
+            endReason: result.endReason,
+          },
+          rank: { daily: daily?.rank ?? null, alltime: alltime?.rank ?? null },
+        };
+      },
+    );
+  };
+}

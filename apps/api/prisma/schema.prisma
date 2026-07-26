@@ -1,0 +1,114 @@
+// Two rules that are not negotiable:
+//
+//   1. Balance is never a mutable column. It is the sum of an append-only ledger.
+//      A balance you can UPDATE is a balance you will eventually corrupt, with no way
+//      to reconstruct the truth.
+//   2. Sessions are immutable once submitted. Never allow resubmission.
+//
+// Everything below exists to make those two things true at the database level rather
+// than merely likely at the application level.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id            String   @id @default(cuid())
+  address       String   @unique // lowercased; null-free because guests never get a row
+  name          String
+  activeChar    String   @default("bull")
+  activeMap     String   @default("dawn")
+  unlockedChars String[] @default(["bull"])
+  unlockedMaps  String[] @default(["dawn"])
+  bestSession   Int      @default(0)
+  totalSessions Int      @default(0)
+
+  // Adaptive difficulty. Lives here rather than on the client because it feeds the
+  // speed ramp: a client-held copy would be a client-side difficulty dial, and every
+  // replay would need to take the client's word for it.
+  handicap Float @default(0)
+
+  flagged   Boolean  @default(false) // suspected automation — never auto-ban
+  banned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions Session[]
+  ledger   LedgerEntry[]
+
+  @@index([bestSession])
+}
+
+model Session {
+  id            String        @id @default(cuid())
+  playerId      String
+  player        Player        @relation(fields: [playerId], references: [id])
+  seed          Int
+  mapId         String
+  charId        String
+  handicap      Float         @default(0)
+  engineVersion Int
+  issuedAt      DateTime      @default(now())
+  submittedAt   DateTime?
+  status        SessionStatus @default(OPEN)
+
+  serverScore Int?
+  clientScore Int? // logged for drift detection only, never trusted
+  candles     Int?
+  bestMult    Int?
+  cleanFlips  Int?
+  inputCount  Int?
+  inputJitterMs Float? // stddev of inter-press gaps — the bot signal
+  frames      Int?
+  endReason   String?
+  wallClockMs Int?
+
+  // The full input tape. Keep it. You will need it — for ghost replays, for challenge
+  // links, and for watching a suspicious run back frame by frame.
+  replay Json?
+
+  // Final-state fingerprint from the server's own replay. A client/server mismatch is
+  // logged, never rejected on: it is the early warning that determinism has broken.
+  serverDigest  String?
+  clientDigest  String?
+  rejectReason  String?
+
+  @@index([playerId, submittedAt])
+  @@index([status, issuedAt])
+  @@index([submittedAt])
+}
+
+enum SessionStatus {
+  OPEN
+  SUBMITTED
+  REJECTED
+  EXPIRED
+}
+
+model LedgerEntry {
+  id        String     @id @default(cuid())
+  playerId  String
+  player    Player     @relation(fields: [playerId], references: [id])
+  kind      LedgerKind
+  amount    Int // signed: credits positive, purchases negative
+  refType   String? // "session" | "unlock" | "admin" | "guest"
+  refId     String?
+  memo      String?
+  createdAt DateTime   @default(now())
+
+  @@unique([refType, refId, kind]) // idempotency: a session can only ever credit once
+  @@index([playerId, createdAt])
+}
+
+enum LedgerKind {
+  SESSION_PAYOUT
+  UNLOCK_PURCHASE
+  TOURNAMENT_PRIZE
+  ADJUSTMENT
+  GUEST_MIGRATION
+}
