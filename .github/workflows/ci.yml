@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    name: engine
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @candle-rush/engine build
+      - run: pnpm --filter @candle-rush/engine typecheck
+      - run: pnpm --filter @candle-rush/engine test
+
+      # The test that actually protects the ledger: tapes generated in a real browser,
+      # replayed in Node, required to produce identical scores and identical digests.
+      - run: pnpm --filter @candle-rush/engine exec playwright install --with-deps chromium
+      - run: pnpm --filter @candle-rush/engine test:browser
+
+  api:
+    name: api
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: candlerush
+          POSTGRES_PASSWORD: candlerush
+          POSTGRES_DB: candlerush_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://candlerush:candlerush@127.0.0.1:5432/candlerush_test
+      TEST_REDIS_URL: redis://127.0.0.1:6379/1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @candle-rush/engine build
+      - run: pnpm --filter @candle-rush/api exec prisma generate
+      - run: pnpm --filter @candle-rush/api typecheck
+      - run: pnpm --filter @candle-rush/api test
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_RHC_CHAIN_ID: '31337'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @candle-rush/engine build
+      - run: pnpm --filter @candle-rush/web typecheck
+      - run: pnpm --filter @candle-rush/web build
