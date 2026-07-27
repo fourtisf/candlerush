@@ -386,16 +386,27 @@ systemctl reload nginx
 ok "proxying $DOMAIN to :$WEB_PORT, /api to :$API_PORT"
 
 if [ "$SKIP_TLS" != "1" ]; then
-  say "Issuing a certificate"
   apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
   CERTBOT_EMAIL_ARG="--register-unsafely-without-email"
   [ -n "$EMAIL" ] && CERTBOT_EMAIL_ARG="-m $EMAIL"
-  if certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --agree-tos --non-interactive \
-       --redirect $CERTBOT_EMAIL_ARG 2>&1 | tail -5; then
-    ok "https://$DOMAIN is live"
+  if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+    # The vhost was just regenerated from the HTTP-only template, discarding the TLS
+    # directives certbot wrote last time. Re-install from the existing certificate rather
+    # than reissuing — otherwise a re-run silently leaves the site serving another vhost's
+    # certificate, which browsers report as ERR_CERT_COMMON_NAME_INVALID.
+    say "Re-applying TLS to the regenerated vhost"
+    certbot install --nginx --cert-name "$DOMAIN" --non-interactive 2>&1 | tail -3 || true
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx
+    ok "https://$DOMAIN restored from the existing certificate"
   else
-    warn "certbot failed. The site is up on http://$DOMAIN — check that the A record for"
-    warn "$DOMAIN points at this box and rerun: certbot --nginx -d $DOMAIN -d www.$DOMAIN"
+    say "Issuing a certificate"
+    if certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --agree-tos --non-interactive \
+         --redirect $CERTBOT_EMAIL_ARG 2>&1 | tail -5; then
+      ok "https://$DOMAIN is live"
+    else
+      warn "certbot failed. The site is up on http://$DOMAIN — check that the A record for"
+      warn "$DOMAIN points at this box and rerun: certbot --nginx -d $DOMAIN -d www.$DOMAIN"
+    fi
   fi
 fi
 

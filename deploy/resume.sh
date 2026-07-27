@@ -135,13 +135,26 @@ nginx -t >/dev/null 2>&1 || die "nginx config test failed — run 'nginx -t'"
 systemctl reload nginx
 ok "$DOMAIN proxied to :$WEB_PORT, /api to :$API_PORT"
 
-if [ "$SKIP_TLS" != "1" ] && [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-  say "Issuing a certificate"
+if [ "$SKIP_TLS" != "1" ]; then
   command -v certbot >/dev/null 2>&1 || apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
-  ARG="--register-unsafely-without-email"
-  [ -n "$EMAIL" ] && ARG="-m $EMAIL"
-  certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --agree-tos --non-interactive --redirect $ARG 2>&1 | tail -4 \
-    || warn "certbot failed — the site is up on http://$DOMAIN; rerun: certbot --nginx -d $DOMAIN -d www.$DOMAIN"
+  if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+    # The vhost was just regenerated from the HTTP-only template, which throws away the TLS
+    # directives certbot wrote into it last time. `certbot install` puts them back using the
+    # certificate that already exists — no new issuance, so no Let's Encrypt rate limit.
+    # Skipping this because live/$DOMAIN exists is how a working site loses its HTTPS on the
+    # second run and starts serving some other vhost's certificate.
+    say "Re-applying TLS to the regenerated vhost"
+    certbot install --nginx --cert-name "$DOMAIN" --non-interactive 2>&1 | tail -3 \
+      || warn "could not re-install the certificate — run: certbot install --nginx --cert-name $DOMAIN"
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx
+    ok "https restored"
+  else
+    say "Issuing a certificate"
+    ARG="--register-unsafely-without-email"
+    [ -n "$EMAIL" ] && ARG="-m $EMAIL"
+    certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --agree-tos --non-interactive --redirect $ARG 2>&1 | tail -4 \
+      || warn "certbot failed — the site is up on http://$DOMAIN; rerun: certbot --nginx -d $DOMAIN -d www.$DOMAIN"
+  fi
 fi
 
 # ── 5. does it work ──────────────────────────────────────────────────────────
