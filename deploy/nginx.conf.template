@@ -1,0 +1,59 @@
+# Candle Rush — nginx site template.
+#
+# __DOMAIN__ is substituted by deploy/vps-deploy.sh. Certbot rewrites this file in place to
+# add the TLS listeners and the HTTP redirect, so it is written HTTP-only here.
+#
+# The API is proxied under /api rather than given its own subdomain on purpose: the browser
+# then sees a single origin, the session cookie stays httpOnly and same-site with no CORS
+# involved, and SIWE has exactly one hostname to match against. Two origins would mean
+# either a cross-site cookie or a token the page can read, and both are worse.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.__DOMAIN__;
+
+    # One canonical host. SIWE messages name a single domain, and a signature naming
+    # www.__DOMAIN__ would be rejected by an API configured for __DOMAIN__.
+    return 301 https://__DOMAIN__$request_uri;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+
+    # A tape is a few KB. Nothing legitimate comes near this.
+    client_max_body_size 1m;
+
+    # Fastify runs with trustProxy, so X-Forwarded-For is what the per-IP rate limits see.
+    # If this header is not set, every request looks like it came from 127.0.0.1 and the
+    # IP limit protects nothing.
+    location /api/ {
+        proxy_pass http://127.0.0.1:4000/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 30s;
+    }
+
+    location /_next/static/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
