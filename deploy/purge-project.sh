@@ -149,44 +149,7 @@ else
   printf '  postgres not reachable\n'
 fi
 
-# ── 4. files ──────────────────────────────────────────────────────────────────
-
-hdr "Directories"
-FOUND=0
-for p in $PROJECTS; do
-  for d in $(find / -xdev -maxdepth 6 -type d -iname "*$p*" \
-               -not -path '*/node_modules/*' -not -path '/proc/*' -not -path '/sys/*' \
-               -not -path '/root/backups/*' 2>/dev/null); do
-    FOUND=1
-    hit "$d  ($(du -sh "$d" 2>/dev/null | cut -f1))"
-    run "rm -rf '$d'"
-    [ "$DO_IT" = 1 ] && gone "$d"
-  done
-done
-[ "$FOUND" = "0" ] && none
-
-hdr "Home directories of removed system users"
-FOUND=0
-for p in $PROJECTS; do
-  if id "$p" >/dev/null 2>&1; then
-    FOUND=1; hit "system user $p (home: $(getent passwd "$p" | cut -d: -f6))"
-    run "pkill -9 -u '$p'; userdel -r '$p'"
-    [ "$DO_IT" = 1 ] && gone "user: $p"
-  fi
-done
-[ "$FOUND" = "0" ] && none
-
-hdr "Cron entries"
-CRON=$(crontab -l 2>/dev/null | grep -iE "$(echo $PROJECTS | tr ' ' '|')")
-if [ -n "$CRON" ]; then
-  while IFS= read -r c; do hit "$c"; done <<< "$CRON"
-  if [ "$DO_IT" = "1" ]; then
-    crontab -l 2>/dev/null | grep -viE "$(echo $PROJECTS | tr ' ' '|')" | crontab -
-    gone "cron entries"
-  fi
-else
-  none
-fi
+# ── 4. certificates, users, then files ──────────────────────────────────────────────────────────────────
 
 hdr "TLS certificates"
 if have certbot; then
@@ -203,6 +166,47 @@ if have certbot; then
   [ "$FOUND" = "0" ] && printf '  none matching those names (other certs left alone)\n'
 else
   printf '  certbot not installed\n'
+fi
+
+hdr "Home directories of removed system users"
+FOUND=0
+for p in $PROJECTS; do
+  if id "$p" >/dev/null 2>&1; then
+    FOUND=1; hit "system user $p (home: $(getent passwd "$p" | cut -d: -f6))"
+    run "pkill -9 -u '$p'; userdel -r '$p'"
+    [ "$DO_IT" = 1 ] && gone "user: $p"
+  fi
+done
+[ "$FOUND" = "0" ] && none
+
+hdr "Directories"
+FOUND=0
+for p in $PROJECTS; do
+  # /etc/letsencrypt is deliberately excluded: certbot owns it, and removing live/ or
+  # archive/ by hand leaves the renewal config behind, which makes every future
+  # `certbot renew` fail — including for domains that have nothing to do with this purge.
+  # The TLS section above removes those properly.
+  for d in $(find / -xdev -maxdepth 6 -type d -iname "*$p*" \
+               -not -path '*/node_modules/*' -not -path '/proc/*' -not -path '/sys/*' \
+               -not -path '/etc/letsencrypt/*' -not -path '/root/backups/*' 2>/dev/null); do
+    FOUND=1
+    hit "$d  ($(du -sh "$d" 2>/dev/null | cut -f1))"
+    run "rm -rf '$d'"
+    [ "$DO_IT" = 1 ] && gone "$d"
+  done
+done
+[ "$FOUND" = "0" ] && none
+
+hdr "Cron entries"
+CRON=$(crontab -l 2>/dev/null | grep -iE "$(echo $PROJECTS | tr ' ' '|')")
+if [ -n "$CRON" ]; then
+  while IFS= read -r c; do hit "$c"; done <<< "$CRON"
+  if [ "$DO_IT" = "1" ]; then
+    crontab -l 2>/dev/null | grep -viE "$(echo $PROJECTS | tr ' ' '|')" | crontab -
+    gone "cron entries"
+  fi
+else
+  none
 fi
 
 # ── 5. what is left ───────────────────────────────────────────────────────────
