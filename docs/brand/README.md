@@ -1,45 +1,49 @@
 # Brand
 
-Five logo directions for Candle Rush. Open [`identity.html`](identity.html) — it is the
-whole study: rationale, colourways, scale tests and usage rules, in one self-contained file
+Four logo directions for Candle Rush. Open [`identity.html`](identity.html) — it is the
+whole study: rationale, variants, scale tests and usage rules, in one self-contained file
 with the typefaces embedded, so it opens with no network at all.
 
-Nothing here is wired into the app yet. These are proposals; pick one and the favicon,
-the app icon and the store assets follow from it.
+Nothing here is wired into the app yet. Pick one and the favicon, the app icon and the
+store assets follow from it.
 
-## The concepts
+## The directions
 
 | | Direction | What it is | Best for |
 |---|---|---|---|
-| 01 | **The Ladder** | Three candles stepping up, last wick out of frame | App icon — recommended |
-| 02 | **Wordspace Wick** | The space between CANDLE and RUSH *is* a candle | Wordmark, headers |
-| 03 | **Doji Seal** | One doji in a ring | Avatar, token, sticker |
-| 04 | **The Hop** | The jump arc between two candle tops | Tutorial, social |
-| 05 | **Tape Speed** | Sheared candles with motion streaks | Store hero, campaign |
+| 01 | **The Vault** | A gold candle on a continuous-corner tile, the next one opening in green behind it | App icon — recommended |
+| 02 | **The Crest** | A gold shield with the candle cut clean out of it | Emblem, merch, one-colour |
+| 03 | **The Signet** | A struck coin: double ring, rim type, C R with the candle in the gap | Avatar, token |
+| 04 | **The Wordmark** | CANDLE in ink, RUSH in gold, the word space between them a candle | Header, title screen |
+
+## What makes them read as metal
+
+Three decisions carry the whole set. Break any of them and the marks stop matching.
+
+- **Two highlights and a turn.** The gold runs light, turns dark at 62%, then catches a
+  second highlight. One flat gradient is a yellow shape; the turn is what makes it gold.
+- **A ground that lifts.** The tile is navy warming toward the top with a gold bloom behind
+  the mark. On a flat fill the metal has nothing to sit against.
+- **Green is always next.** Gold is the candle that closed, green is the one still open.
+  Same rule the HUD follows.
+
+Light comes from the top left in every mark. That is the only reason they sit together.
 
 ## Files
 
-`svg/<concept>-<part>-<colourway>.svg`
+`svg/*.svg` — drawn at 512, resolution-free.
 
-- **parts** — `icon`, `lockup`, `small` (a redrawn cut for 32px and below), `stacked`
-- **colourways** — `dark` (on `#06081C`), `light` (on white or paper), `mono`
+- `vault`, `vault-small` (drops the ghost candles for 32px and below), `vault-flat`
+- `crest`, `crest-tile`
+- `signet`, `signet-small` (drops the rim type, thickens the ring)
+- `wordmark`, `wordmark-plain` (no kicker), `wordmark-light`
+- `*-lockup`, `*-lockup-light` — icon plus wordmark
 
-The `mono` files paint with `currentColor`, so they take the colour of whatever element
-they are dropped into — one file covers every one-colour use.
+Wordmarks are outlined rather than set as live text, so the files carry no font dependency
+and render identically on a machine that has never seen Archivo.
 
-Wordmarks are outlined, not live text. The logo files therefore carry no font dependency
-and render identically on a machine that has never seen Bricolage Grotesque.
+## Type
 
-## Rebuilding
-
-`../../` has no build step for these — they were generated once by the scripts recorded in
-the study. To change a mark, edit the SVG directly; the geometry is plain rects and one
-`<path>` per word.
-
-Two rules the geometry holds across every mark, worth keeping if you extend the set:
-
-- body corner radius is **28%** of body width
-- the wick is **15%** of body width at **50%** opacity
-
-And one rule for lockups: **never two candles**. If the icon carries a candle, the wordmark
-is plain; if the wordmark carries one (concept 02), there is no icon.
+Archivo, weight 900, width 82 — narrow enough to be dense, heavy enough to hold a metal
+fill without the gradient collapsing inside the strokes. Martian Mono stays for labels,
+tickers and the signet's rim type.

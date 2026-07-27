@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none" role="img"><defs>
+<linearGradient id="auc" x1="0" y1="0" x2=".55" y2="1">
+  <stop offset="0" stop-color="#FFF8E2"/><stop offset=".18" stop-color="#FFDD8C"/>
+  <stop offset=".46" stop-color="#F5B93F"/><stop offset=".62" stop-color="#D08D18"/>
+  <stop offset=".82" stop-color="#F7C862"/><stop offset="1" stop-color="#FFE9AE"/>
+</linearGradient>
+<linearGradient id="auEc" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#FFEFC0"/><stop offset="1" stop-color="#9C6A0E"/>
+</linearGradient>
+<linearGradient id="emc" x1="0" y1="0" x2=".5" y2="1">
+  <stop offset="0" stop-color="#B6FFE4"/><stop offset=".42" stop-color="#31EEA9"/>
+  <stop offset=".78" stop-color="#0C9A66"/><stop offset="1" stop-color="#57F0BE"/>
+</linearGradient>
+<linearGradient id="bevc" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#FFFFFF" stop-opacity=".30"/>
+  <stop offset=".45" stop-color="#FFFFFF" stop-opacity=".05"/>
+  <stop offset="1" stop-color="#FFFFFF" stop-opacity=".10"/>
+</linearGradient></defs><mask id="mkc">
+      <path d="M256 26 L462 96 C462 296 392 424 256 486 C120 424 50 296 50 96 Z" fill="#fff"/>
+      <rect x="240" y="92" width="32" height="330" rx="16" fill="#000"/>
+      <rect x="196" y="170" width="120" height="182" rx="38" fill="#000"/>
+    </mask><path d="M256 26 L462 96 C462 296 392 424 256 486 C120 424 50 296 50 96 Z" fill="url(#auc)" mask="url(#mkc)"/><path d="M256 26 L462 96 C462 296 392 424 256 486 C120 424 50 296 50 96 Z" stroke="url(#auEc)" stroke-width="6" fill="none" opacity=".55"/></svg>
