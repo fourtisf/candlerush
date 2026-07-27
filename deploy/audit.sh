@@ -115,31 +115,64 @@ hdr "10. Cron entries"
 CRON=$(crontab -l 2>/dev/null | grep -i -E 'candle|rush')
 if [ -n "$CRON" ]; then mark; while IFS= read -r c; do hit "$c"; done <<< "$CRON"; else none; fi
 
+hdr "Neighbours on this box"
+# This machine may host other production apps. Anything that is not Candle Rush is listed
+# here so it is visible BEFORE the removal commands below, which are all scoped to
+# Candle Rush by name for exactly that reason.
+NEIGHBOURS=0
+if have pm2; then
+  OTHER=$(pm2 jlist 2>/dev/null | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | sort -u | grep -v '^candle-rush' || true)
+  [ -n "$OTHER" ] && { NEIGHBOURS=1; while IFS= read -r a; do hit "pm2: $a"; done <<< "$OTHER"; }
+fi
+OTHERNG=$(ls -1 /etc/nginx/sites-enabled 2>/dev/null | grep -v -i -E 'candle|rush' || true)
+[ -n "$OTHERNG" ] && { NEIGHBOURS=1; while IFS= read -r n; do hit "nginx site: $n"; done <<< "$OTHERNG"; }
+if have psql && id postgres >/dev/null 2>&1 && su postgres -c "psql -tAc 'SELECT 1'" >/dev/null 2>&1; then
+  OTHERDB=$(su postgres -c "psql -tAc \"SELECT datname FROM pg_database WHERE datname NOT IN ('postgres','template0','template1','$DB_NAME')\"" 2>/dev/null)
+  [ -n "$OTHERDB" ] && { NEIGHBOURS=1; while IFS= read -r d; do [ -n "$d" ] && hit "database: $d"; done <<< "$OTHERDB"; }
+fi
+if have redis-cli; then
+  for i in $(seq 0 15); do
+    n=$(redis-cli -n "$i" dbsize 2>/dev/null | awk '{print $1}')
+    [ -n "$n" ] && [ "$n" != "0" ] && { NEIGHBOURS=1; hit "redis db$i: $n keys"; }
+  done
+fi
+[ "$NEIGHBOURS" = "0" ] && printf '  nothing else appears to be hosted here\n'
+
 hdr "Summary"
 if [ "$FOUND_ANY" = "0" ]; then
-  printf '  \033[32mClean box. Nothing left over.\033[0m\n\n'
+  printf '  \033[32mNo Candle Rush leftovers.\033[0m\n\n'
 else
   cat <<EOF
-  Leftovers above. To remove them:
+  Candle Rush leftovers above. Every command below names Candle Rush explicitly, because
+  this box may host other apps and a blanket command would take them with it:
 
-    pm2 delete all && pm2 save --force && pm2 unstartup systemd
+    pm2 delete candle-rush-api candle-rush-web 2>/dev/null; pm2 save --force
     rm -rf /opt/candlerush /root/candlerush /var/www/candlerush /tmp/cr-bootstrap
     rm -f /etc/nginx/sites-enabled/candlerush /etc/nginx/sites-available/candlerush
     nginx -t && systemctl reload nginx
 
-  Deliberately not in that list, because they are not "files left over":
+  DO NOT use the blanket versions of those on this machine:
+    pm2 delete all        kills every other app's processes too
+    redis-cli FLUSHALL    wipes every other app's Redis data
+    rm -f /etc/nginx/sites-enabled/default   another app may BE the default site
 
-    the Postgres database — it holds the append-only ledger, and balance is the sum of
-    it. Nothing else can rebuild it. Drop it only if you mean to:
+  Not included, and not "leftover files":
+
+    the Postgres database — balance is the sum of an append-only ledger and nothing else
+    can rebuild it. Only if you mean to:
       su postgres -c "dropdb --if-exists $DB_NAME"
+      su postgres -c "dropuser --if-exists $DB_NAME"
 
-    the TLS certificate — reissuing hits Let's Encrypt rate limits (5 per domain per
-    week). Leave it; a redeploy reuses it:
+    the TLS certificate — reissuing burns Let's Encrypt rate limits (5 per domain per
+    week) and a redeploy reuses it:
       certbot delete --cert-name $DOMAIN
 
-  Redis holds only caches and leaderboards, and the leaderboard is rebuildable from
-  Postgres, so flushing it is recoverable:
-      redis-cli FLUSHALL
+  Candle Rush's Redis keys are prefixed, so they can be cleared without touching a
+  co-hosted app (\$REDIS_DB defaults to the db the API was configured with):
+      redis-cli -n \${REDIS_DB:-0} --scan --pattern 'lb:*'     | xargs -r redis-cli -n \${REDIS_DB:-0} del
+      redis-cli -n \${REDIS_DB:-0} --scan --pattern 'player:*' | xargs -r redis-cli -n \${REDIS_DB:-0} del
+      redis-cli -n \${REDIS_DB:-0} --scan --pattern 'siwe:*'   | xargs -r redis-cli -n \${REDIS_DB:-0} del
+      redis-cli -n \${REDIS_DB:-0} --scan --pattern 'rl:*'     | xargs -r redis-cli -n \${REDIS_DB:-0} del
 EOF
   printf '\n'
 fi

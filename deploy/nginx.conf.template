@@ -1,6 +1,7 @@
 # Candle Rush — nginx site template.
 #
-# __DOMAIN__ is substituted by deploy/vps-deploy.sh. Certbot rewrites this file in place to
+# __DOMAIN__, __WEB_PORT__ and __API_PORT__ are substituted by deploy/vps-deploy.sh, which
+# picks the ports around whatever is already listening on this box. Certbot rewrites this file in place to
 # add the TLS listeners and the HTTP redirect, so it is written HTTP-only here.
 #
 # The API is proxied under /api rather than given its own subdomain on purpose: the browser
@@ -30,7 +31,7 @@ server {
     # If this header is not set, every request looks like it came from 127.0.0.1 and the
     # IP limit protects nothing.
     location /api/ {
-        proxy_pass http://127.0.0.1:4000/;
+        proxy_pass http://127.0.0.1:__API_PORT__/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -40,14 +41,14 @@ server {
     }
 
     location /_next/static/ {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:__WEB_PORT__;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         add_header Cache-Control "public, max-age=31536000, immutable";
     }
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:__WEB_PORT__;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";

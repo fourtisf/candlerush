@@ -1,3 +1,5 @@
+// Must be first: it populates process.env before any module reads it.
+import './load-env.js';
 import { prisma } from './db.js';
 import { env } from './env.js';
 import { closeRedis } from './redis.js';

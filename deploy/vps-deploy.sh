@@ -62,7 +62,51 @@ Take the value from https://docs.robinhood.com/chain and re-run:
   RHC_CHAIN_ID=<id> bash deploy/vps-deploy.sh -y"
 fi
 
+WEB_PORT=${WEB_PORT:-3000}
+API_PORT=${API_PORT:-4000}
+REDIS_DB=${REDIS_DB:-}
+
+port_taken() {
+  if command -v ss >/dev/null 2>&1; then ss -tlnH 2>/dev/null | grep -qE "[:.]$1[[:space:]]"
+  elif command -v netstat >/dev/null 2>&1; then netstat -tln 2>/dev/null | grep -qE "[:.]$1[[:space:]]"
+  else return 1; fi
+}
+
+pick_port() {
+  local want=$1 p=$1
+  while port_taken "$p"; do p=$((p + 1)); done
+  [ "$p" != "$want" ] && warn "port $want is already in use — using $p instead" >&2
+  printf '%s' "$p"
+}
+
 say "Deploying $REPO_URL#$BRANCH to $APP_DIR for $DOMAIN"
+
+# ── 0. who else lives here ───────────────────────────────────────────────────
+# This box may already host other production apps. Everything below is scoped by name,
+# and the ports and Redis database are chosen around whatever is already running.
+
+say "Checking what else is on this box"
+NEIGHBOURS=0
+if command -v pm2 >/dev/null 2>&1; then
+  OTHER=$(pm2 jlist 2>/dev/null | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | sort -u | grep -v '^candle-rush' || true)
+  [ -n "$OTHER" ] && { NEIGHBOURS=1; for a in $OTHER; do warn "pm2 app: $a"; done; }
+fi
+OTHERNG=$(ls -1 /etc/nginx/sites-enabled 2>/dev/null | grep -v -i candle || true)
+[ -n "$OTHERNG" ] && { NEIGHBOURS=1; for n in $OTHERNG; do warn "nginx site: $n"; done; }
+if command -v psql >/dev/null 2>&1 && id postgres >/dev/null 2>&1 \
+   && su postgres -c "psql -tAc 'SELECT 1'" >/dev/null 2>&1; then
+  OTHERDB=$(su postgres -c "psql -tAc \"SELECT datname FROM pg_database WHERE datname NOT IN ('postgres','template0','template1','$DB_NAME')\"" 2>/dev/null)
+  [ -n "$OTHERDB" ] && { NEIGHBOURS=1; for d in $OTHERDB; do warn "database: $d"; done; }
+fi
+if [ "$NEIGHBOURS" = "1" ]; then
+  warn "this deploy will not touch any of the above"
+else
+  ok "nothing else hosted here"
+fi
+
+WEB_PORT=$(pick_port "$WEB_PORT")
+API_PORT=$(pick_port "$API_PORT")
+ok "web on :$WEB_PORT, api on :$API_PORT"
 
 # ── 1. previous installs ─────────────────────────────────────────────────────
 
@@ -112,6 +156,12 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq curl ca-certificates gnupg git build-essential ufw >/dev/null
 
+CURRENT_NODE=$(node -v 2>/dev/null || echo none)
+if [ "$CURRENT_NODE" != "none" ] && [ "$(echo "$CURRENT_NODE" | cut -d. -f1 | tr -d v)" -lt "$NODE_MAJOR" ]; then
+  warn "node $CURRENT_NODE is installed and will be replaced by $NODE_MAJOR.x."
+  warn "Anything else on this box running on $CURRENT_NODE will be moved with it."
+  confirm "Upgrade node to $NODE_MAJOR.x?" || die "aborted — set NODE_MAJOR to match, or upgrade manually"
+fi
 if ! command -v node >/dev/null 2>&1 || [ "$(node -v | cut -d. -f1 | tr -d v)" -lt "$NODE_MAJOR" ]; then
   curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - >/dev/null
   apt-get install -y -qq nodejs >/dev/null
@@ -165,13 +215,27 @@ ok "database $DB_NAME owned by $DB_USER"
 say "Writing configuration"
 JWT_SECRET=$(openssl rand -hex 32)
 
+# Pick an empty Redis database. Candle Rush's keys are prefixed (player:, lb:, siwe:, rl:)
+# so a collision is unlikely, but sharing db 0 with another app means one FLUSHDB takes
+# out both. An empty database of its own costs nothing.
+if [ -z "$REDIS_DB" ]; then
+  REDIS_DB=0
+  if command -v redis-cli >/dev/null 2>&1; then
+    for i in $(seq 0 15); do
+      n=$(redis-cli -n "$i" dbsize 2>/dev/null | awk '{print $1}')
+      if [ "${n:-0}" = "0" ]; then REDIS_DB=$i; break; fi
+    done
+  fi
+fi
+ok "redis database $REDIS_DB"
+
 cat > apps/api/.env <<EOF
 NODE_ENV=production
-PORT=4000
+PORT=$API_PORT
 HOST=127.0.0.1
 
 DATABASE_URL=postgresql://$DB_USER:$DB_PASS@127.0.0.1:5432/$DB_NAME
-REDIS_URL=redis://127.0.0.1:6379/0
+REDIS_URL=redis://127.0.0.1:6379/$REDIS_DB
 
 JWT_SECRET=$JWT_SECRET
 JWT_TTL_DAYS=7
@@ -196,6 +260,13 @@ JITTER_FLAG_MS=8
 GUEST_MIGRATION_CAP=50000
 EOF
 chmod 600 apps/api/.env
+
+# pm2 reads these on every reload, so a restart months from now still lands on the ports
+# nginx is proxying to.
+cat > deploy/ports.env <<EOF
+WEB_PORT=$WEB_PORT
+API_PORT=$API_PORT
+EOF
 
 # NEXT_PUBLIC_* are baked in at build time, so this has to exist before the web build.
 cat > apps/web/.env.local <<EOF
@@ -237,12 +308,18 @@ ok "$(pm2 jlist | grep -o '"name":"candle-rush[^"]*"' | cut -d'"' -f4 | tr '\n' 
 # ── 9. nginx and TLS ─────────────────────────────────────────────────────────
 
 say "Configuring nginx"
-sed "s/__DOMAIN__/$DOMAIN/g" deploy/nginx.conf.template > /etc/nginx/sites-available/candlerush
+sed -e "s/__DOMAIN__/$DOMAIN/g" -e "s/__WEB_PORT__/$WEB_PORT/g" -e "s/__API_PORT__/$API_PORT/g" \
+  deploy/nginx.conf.template > /etc/nginx/sites-available/candlerush
 ln -sf /etc/nginx/sites-available/candlerush /etc/nginx/sites-enabled/candlerush
-rm -f /etc/nginx/sites-enabled/default
+# The default site is deliberately left in place. On a shared box another app may BE the
+# default site, and removing it would take that app offline. Candle Rush matches on
+# server_name, so it does not need the default slot.
+if [ -e /etc/nginx/sites-enabled/default ]; then
+  warn "sites-enabled/default left alone — remove it yourself if nothing else uses it"
+fi
 nginx -t >/dev/null 2>&1 || die "nginx config test failed — run 'nginx -t' to see why"
 systemctl reload nginx
-ok "proxying $DOMAIN to :3000, /api to :4000"
+ok "proxying $DOMAIN to :$WEB_PORT, /api to :$API_PORT"
 
 if [ "$SKIP_TLS" != "1" ]; then
   say "Issuing a certificate"
@@ -259,7 +336,9 @@ if [ "$SKIP_TLS" != "1" ]; then
 fi
 
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q inactive; then
-  warn "ufw is inactive. To close everything but ssh and web:"
+  warn "ufw is inactive. Before enabling it, check nothing else on this box serves a port"
+  warn "directly — enabling with only ssh and web open would cut those off:"
+  warn "  ss -tlnp        # see what is listening"
   warn "  ufw allow OpenSSH && ufw allow 'Nginx Full' && ufw --force enable"
 fi
 
@@ -267,8 +346,8 @@ fi
 
 say "Checking"
 sleep 4
-API_HEALTH=$(curl -fsS http://127.0.0.1:4000/health 2>/dev/null || echo '')
-WEB_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/ 2>/dev/null || echo '000')
+API_HEALTH=$(curl -fsS "http://127.0.0.1:$API_PORT/health" 2>/dev/null || echo '')
+WEB_CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$WEB_PORT/" 2>/dev/null || echo '000')
 
 if [ -n "$API_HEALTH" ]; then ok "api  $API_HEALTH"; else warn "api not answering — pm2 logs candle-rush-api"; fi
 if [ "$WEB_CODE" = "200" ]; then ok "web  HTTP 200"; else warn "web returned $WEB_CODE — pm2 logs candle-rush-web"; fi

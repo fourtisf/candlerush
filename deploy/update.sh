@@ -49,8 +49,12 @@ ok "reloaded"
 
 say "Checking"
 sleep 4
-API_HEALTH=$(curl -fsS http://127.0.0.1:4000/health 2>/dev/null || echo '')
-WEB_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/ 2>/dev/null || echo '000')
+# The ports the deploy actually chose, which may not be the defaults if something else on
+# this box already had them.
+API_PORT=$(grep '^API_PORT=' deploy/ports.env 2>/dev/null | cut -d= -f2); API_PORT=${API_PORT:-4000}
+WEB_PORT=$(grep '^WEB_PORT=' deploy/ports.env 2>/dev/null | cut -d= -f2); WEB_PORT=${WEB_PORT:-3000}
+API_HEALTH=$(curl -fsS "http://127.0.0.1:$API_PORT/health" 2>/dev/null || echo '')
+WEB_CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$WEB_PORT/" 2>/dev/null || echo '000')
 [ -n "$API_HEALTH" ] && ok "api  $API_HEALTH" || warn "api not answering — pm2 logs candle-rush-api"
 [ "$WEB_CODE" = "200" ] && ok "web  HTTP 200" || warn "web returned $WEB_CODE — pm2 logs candle-rush-web"
 printf '\n\033[1;32mDone.\033[0m\n'
