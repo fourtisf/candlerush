@@ -19,6 +19,7 @@ DOMAIN=${DOMAIN:-candlerush.fun}
 EMAIL=${EMAIL:-}
 DB_NAME=${DB_NAME:-candlerush}
 DB_USER=${DB_USER:-candlerush}
+DB_PORT=${DB_PORT:-5432}
 NODE_MAJOR=${NODE_MAJOR:-22}
 ASSUME_YES=${ASSUME_YES:-0}
 SKIP_TLS=${SKIP_TLS:-0}
@@ -204,13 +205,65 @@ ok "$(git -C "$APP_DIR" log --oneline -1)"
 
 say "Provisioning Postgres"
 DB_PASS=$(openssl rand -hex 24)
-su postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'\"" | grep -q 1 \
-  && su postgres -c "psql -qc \"ALTER ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS'\"" >/dev/null \
-  || su postgres -c "psql -qc \"CREATE ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS'\"" >/dev/null
-su postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='$DB_NAME'\"" | grep -q 1 \
-  || su postgres -c "createdb -O $DB_USER $DB_NAME"
-su postgres -c "psql -qc \"ALTER DATABASE $DB_NAME OWNER TO $DB_USER\"" >/dev/null
+
+# ON_ERROR_STOP, because psql exits 0 on a failed statement by default — without it a
+# CREATE ROLE that errored looks exactly like one that worked, and the failure only
+# surfaces minutes later as an authentication error.
+pgx() { su postgres -c "psql -v ON_ERROR_STOP=1 -qtAc \"$1\"" 2>&1; }
+
+if pgx "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
+  pgx "ALTER ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS'" >/dev/null \
+    || die "could not set the password on the existing role $DB_USER"
+else
+  pgx "CREATE ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS'" >/dev/null \
+    || die "could not create the role $DB_USER"
+fi
+if ! pgx "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1; then
+  su postgres -c "createdb -O $DB_USER $DB_NAME" || die "could not create the database $DB_NAME"
+fi
+pgx "ALTER DATABASE $DB_NAME OWNER TO $DB_USER" >/dev/null
 ok "database $DB_NAME owned by $DB_USER"
+
+# Prove the credentials work over TCP before three minutes of building depend on them.
+# This is where a pre-existing Postgres with a hand-edited pg_hba.conf shows up, and the
+# error it produces at migration time ("provide valid database credentials") says nothing
+# about which of the several possible causes it is.
+db_reachable() {
+  PGPASSWORD="$DB_PASS" psql -h 127.0.0.1 -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+    -tAc 'SELECT 1' 2>&1 >/dev/null
+}
+
+PGCONN_ERR=$(db_reachable) || {
+  # Most common cause on a cluster that predates this deploy: pg_hba.conf asks for
+  # scram-sha-256 while the server still hashes new passwords as md5 (or the reverse),
+  # usually because the cluster was upgraded from PG 13 or earlier and only one of the two
+  # settings was moved. The password is then stored in a form the negotiated method cannot
+  # verify. Re-hash it the other way and try once more before giving up.
+  CURRENT_ENC=$(pgx "SHOW password_encryption" | tr -d ' ')
+  OTHER_ENC=$([ "$CURRENT_ENC" = "md5" ] && echo "scram-sha-256" || echo "md5")
+  warn "auth failed with password_encryption=$CURRENT_ENC — retrying as $OTHER_ENC"
+  pgx "SET password_encryption = '$OTHER_ENC'; ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASS'" >/dev/null 2>&1
+  PGCONN_ERR=$(db_reachable) && ok "connected after re-hashing the password as $OTHER_ENC"
+}
+[ -n "${PGCONN_ERR:-}" ] && {
+  HBA=$(ls /etc/postgresql/*/main/pg_hba.conf 2>/dev/null | head -1)
+  die "the role and database exist, but connecting as '$DB_USER' over TCP fails:
+
+  $PGCONN_ERR
+
+This box had Postgres before this deploy, so pg_hba.conf is not necessarily the default.
+Check that it allows password auth from localhost:
+
+  grep -v '^#' $HBA | grep -v '^\$'
+
+It needs a line like this ABOVE any conflicting rule, then 'systemctl reload postgresql':
+
+  host    $DB_NAME    $DB_USER    127.0.0.1/32    scram-sha-256
+  host    $DB_NAME    $DB_USER    ::1/128         scram-sha-256
+
+If Postgres is not on port $DB_PORT (check with 'pg_lsclusters'), re-run with DB_PORT set."
+}
+ok "connected as $DB_USER over TCP on port $DB_PORT"
 
 # ── 5. configuration ─────────────────────────────────────────────────────────
 
@@ -236,7 +289,7 @@ NODE_ENV=production
 PORT=$API_PORT
 HOST=127.0.0.1
 
-DATABASE_URL=postgresql://$DB_USER:$DB_PASS@127.0.0.1:5432/$DB_NAME
+DATABASE_URL=postgresql://$DB_USER:$DB_PASS@127.0.0.1:$DB_PORT/$DB_NAME
 REDIS_URL=redis://127.0.0.1:6379/$REDIS_DB
 
 JWT_SECRET=$JWT_SECRET
