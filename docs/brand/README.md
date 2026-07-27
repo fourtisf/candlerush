@@ -66,8 +66,9 @@ drift from the logo:
 ### X assets
 
 `social/x-header-1500.png` — 1500×500. The profile picture covers the bottom left and both
-ends crop on a phone, so the lockup sits in the middle band and the domain sits bottom
-centre where nothing lands on it.
+ends crop on a phone, so the lockup and the line under it sit in the middle band, where
+neither the crop nor the avatar can reach them. No URL on the banner — X already shows the
+link in the profile, and repeating it here only competes with the mark.
 
 `social/x-avatar-400.png` — 400×400. X crops an avatar to a circle, so the mark is scaled
 to 70% about the centre: at full size the top of the wick was sliced off. It stays legible
