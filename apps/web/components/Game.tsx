@@ -30,6 +30,7 @@ import {
   ReviveScreen,
   type Result,
 } from './ui/Screens';
+import { Wordmark } from './ui/Wordmark';
 
 type Screen = 'profile' | 'hub' | 'chars' | 'maps' | 'leaderboard' | 'howto' | 'playing' | 'over';
 
@@ -410,6 +411,18 @@ export function Game() {
   const map = mapById(account.map);
   const inRun = screen === 'playing' && !reviving && !levelClear;
 
+  /**
+   * Which of the two opening screens a reload lands on, derived rather than corrected.
+   *
+   * The effect above converges `screen` to 'hub' for a player who already has a name, but
+   * an effect runs after the browser has had its chance to paint — so a reload showed the
+   * empty TRADER NAME box for a frame before jumping to the balance, which reads as having
+   * been signed out. Deciding it here means that frame never exists.
+   */
+  const settled = screen === 'profile' && account.ready;
+  const atProfile = settled && !account.named;
+  const atHub = screen === 'hub' || (settled && account.named);
+
   return (
     <div id="stage" className={screen === 'playing' ? 'playing' : ''}>
       <canvas id="game" ref={canvasRef} onPointerDown={onPointerDown} onPointerUp={onPointerUp} />
@@ -433,9 +446,21 @@ export function Game() {
         {toast?.text ?? ''}
       </div>
 
-      <ProfileScreen on={screen === 'profile'} onEnter={() => setScreen('hub')} onError={setError} />
+      {/* Something true to look at while /me is in flight. Whichever screen comes next
+          opens with this same mark, so the wait reads as the page arriving rather than as
+          a blank hold. */}
+      <section className={`scr boot${account.ready ? '' : ' on'}`}>
+        <div className="pan">
+          <Wordmark className="logo sm" />
+        </div>
+      </section>
+
+      {/* Not shown until we know whether there is an account. `ready` waits on /me — an
+          httpOnly cookie is invisible from here — and until it lands we cannot tell a
+          first-time visitor from someone who has played all week. */}
+      <ProfileScreen on={atProfile} onEnter={() => setScreen('hub')} onError={setError} />
       <HubScreen
-        on={screen === 'hub'}
+        on={atHub}
         starting={starting}
         onPlay={() => void play()}
         onChars={() => setScreen('chars')}

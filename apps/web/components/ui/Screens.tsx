@@ -145,6 +145,14 @@ export function HubScreen({
   return (
     <section className={`scr${on ? ' on' : ''}`}>
       <div className="pan">
+        {/* The front door, on every visit after the first.
+            Once an account is named this screen is what candlerush.fun opens to, and it
+            used to open to a bare number: no wordmark, no contract address, nothing
+            saying which site this is. Refreshing after a session looked like landing
+            somewhere else entirely. The mark and the CA belong on whatever screen is
+            first, not only on the one a player sees once. */}
+        <Wordmark className="logo sm" />
+        <ContractAddress />
         <div className="k">ACCOUNT BALANCE</div>
         <div className="bal">{money(account.balance)}</div>
         {renaming ? (

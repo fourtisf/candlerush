@@ -54,6 +54,14 @@ async function main(): Promise<void> {
     }
   });
 
+  // globals.css @imports its webfonts from Google, and a build box with no egress leaves
+  // that request hanging — the document then never finishes loading and every check below
+  // fails for a reason that has nothing to do with the client. Answer it locally. The
+  // typefaces are not what this test is for, and both have fallbacks declared.
+  await page.route('https://fonts.googleapis.com/**', (r) =>
+    r.fulfill({ status: 200, contentType: 'text/css', body: '' }),
+  );
+
   await page.goto(WEB_URL, { waitUntil: 'networkidle' });
   await page.waitForSelector('canvas#game');
 
@@ -91,8 +99,11 @@ async function main(): Promise<void> {
   for (let i = 0; i < 60 && !sawLevelPanel; i++) {
     await page.keyboard.press('Space');
     await page.waitForTimeout(340);
+    // The panel's own badge. This used to look for `.eyebrow`, which the level panel has
+    // not had since it was given a card of its own — so the check quietly failed on every
+    // run whether or not a level was ever cleared.
     sawLevelPanel = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('.scr.on .eyebrow')).some((n) =>
+      Array.from(document.querySelectorAll('.scr.on .lvlbadge')).some((n) =>
         (n.textContent ?? '').includes('CLEARED'),
       ),
     );
@@ -101,6 +112,41 @@ async function main(): Promise<void> {
     await page.waitForTimeout(700); // the screen crossfade is 350ms
     await page.screenshot({ path: `${SHOTS}/4-level.png` });
   }
+
+  /* ── coming back ───────────────────────────────────────────────────────────
+   * What a returning player actually does: reload the page. This has to land on the hub
+   * and it has to still look like Candle Rush — a reload that shows an empty TRADER NAME
+   * box, even for a frame, reads as having been signed out, and a hub with no mark and no
+   * contract address on it does not read as the front page of anything. */
+  const seen = new Set<string>();
+  await page.reload({ waitUntil: 'commit' });
+  const until = Date.now() + 8_000;
+  while (Date.now() < until) {
+    seen.add(
+      await page.evaluate(() => {
+        const on = [...document.querySelectorAll('section.scr.on')];
+        if (!on.length) return 'nothing';
+        return on
+          .map((s) =>
+            s.classList.contains('boot')
+              ? 'boot'
+              : s.querySelector('input[placeholder="TRADER NAME"]')
+                ? 'naming'
+                : s.querySelector('.bal')
+                  ? 'hub'
+                  : 'other',
+          )
+          .join('+');
+      }),
+    );
+    if (seen.has('hub')) break;
+  }
+  const reloadPath = [...seen].join(' → ');
+  const brandedHub = await page.evaluate(() => ({
+    logo: !!document.querySelector('.scr.on .logo'),
+    ca: (document.querySelector('.scr.on .ca .v')?.textContent ?? '').trim(),
+  }));
+  await page.screenshot({ path: `${SHOTS}/5-reload.png` });
 
   await browser.close();
 
@@ -118,6 +164,9 @@ async function main(): Promise<void> {
     ['level clock is running down', clockSeconds > 0 && clockSeconds <= 25, hud.clock],
     ['HUD shows a level', /LEVEL \d+/.test(hud.level), hud.level],
     ['the level-clear panel appears', sawLevelPanel, sawLevelPanel ? 'shown' : 'never reached a level end'],
+    ['a reload lands on the hub', seen.has('hub'), reloadPath],
+    ['a reload never flashes the naming screen', !seen.has('naming'), reloadPath],
+    ['the hub carries the mark and the CA', brandedHub.logo && !!brandedHub.ca, `logo ${brandedHub.logo} · CA ${brandedHub.ca || 'missing'}`],
     ['no page or console errors', problems.length === 0, problems.join(' | ') || 'clean'],
   ];
 
