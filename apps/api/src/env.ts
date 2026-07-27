@@ -6,6 +6,20 @@ import { z } from 'zod';
  * Nothing here has a "sensible default" that would be dangerous if it were wrong in
  * production — no default JWT secret, no default database, no default chain id.
  */
+/**
+ * A key that is present but blank in a .env file means "not set".
+ *
+ * `RHC_RPC_URL=` is the normal way to write an unset value, and it is exactly what
+ * deploy/vps-deploy.sh writes when no RPC URL was supplied. Zod's `.optional()` only
+ * accepts `undefined`, so an empty string went to `.url()` and failed — and because this
+ * validation runs at import time, the API did not start at all. It restarted, failed,
+ * restarted, failed, and the only symptom anywhere else was a site with no API behind it.
+ *
+ * Blank means absent. Anything else is a value and is validated as one.
+ */
+const blankIsUnset = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), inner);
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
@@ -18,7 +32,7 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_TTL_DAYS: z.coerce.number().int().positive().default(7),
   COOKIE_NAME: z.string().default('cr_session'),
-  COOKIE_DOMAIN: z.string().optional(),
+  COOKIE_DOMAIN: blankIsUnset(z.string().optional()),
   COOKIE_SECURE: z
     .enum(['true', 'false'])
     .default('true')
@@ -38,7 +52,7 @@ const schema = z.object({
    * chain id silently accepts signatures meant for a different network.
    */
   RHC_CHAIN_ID: z.coerce.number().int().positive(),
-  RHC_RPC_URL: z.string().url().optional(),
+  RHC_RPC_URL: blankIsUnset(z.string().url().optional()),
 
   /** Replay guard rails. */
   /**
@@ -67,7 +81,7 @@ const schema = z.object({
    * Enables GET /admin/stats. Unset, the endpoint answers 501 rather than existing with a
    * default token — a guessable admin door is worse than no door.
    */
-  ADMIN_TOKEN: z.string().min(24).optional(),
+  ADMIN_TOKEN: blankIsUnset(z.string().min(24).optional()),
 
   /** Rate limits. */
   SESSION_START_PER_HOUR_PLAYER: z.coerce.number().int().positive().default(20),
