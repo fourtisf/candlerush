@@ -47,3 +47,31 @@ and render identically on a machine that has never seen Archivo.
 Archivo, weight 900, width 82 — narrow enough to be dense, heavy enough to hold a metal
 fill without the gradient collapsing inside the strokes. Martian Mono stays for labels,
 tickers and the signet's rim type.
+
+## Chosen: The Vault
+
+The Vault is the mark in use. Everything below is generated from it, so none of it can
+drift from the logo:
+
+| File | Where it is used |
+|---|---|
+| `apps/web/app/icon.svg` | browser tab |
+| `apps/web/app/favicon.ico` | browser tab, older clients |
+| `apps/web/app/apple-icon.png` | iOS home screen, 180×180 |
+| `apps/web/app/opengraph-image.jpg` | link previews, 1200×630 |
+| `apps/web/app/twitter-image.jpg` | X link previews |
+| `apps/web/public/brand/icon-192.png`, `icon-512.png` | installed web app (`app/manifest.ts`) |
+| `apps/web/components/ui/Wordmark.tsx` | the title screen |
+
+### X assets
+
+`social/x-header-1500.png` — 1500×500. The profile picture covers the bottom left and both
+ends crop on a phone, so the lockup sits in the middle band and the domain sits bottom
+centre where nothing lands on it.
+
+`social/x-avatar-400.png` — 400×400. X crops an avatar to a circle, so the mark is scaled
+to 70% about the centre: at full size the top of the wick was sliced off. It stays legible
+down to 24px.
+
+Upload the header under *Edit profile → header*, the avatar under *profile picture*. Both
+are also here as SVG if you ever need another size.

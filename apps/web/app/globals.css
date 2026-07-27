@@ -162,6 +162,11 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
 .unranked{font-size:8.5px;letter-spacing:.18em;color:var(--faint);margin-top:10px;line-height:1.9}
 .busy{opacity:.55;pointer-events:none}
 
+/* The wordmark replaces the typed title on the opening screen. It is outlined art, so it
+   is sized by width and never by font-size. */
+.logo{width:min(100%,420px);height:auto;display:block;margin:2px auto 0;
+  filter:drop-shadow(0 14px 34px rgba(0,0,0,.55))}
+
 /* The level counter sits where "CLOSE IN" used to, above the level clock. */
 .k.lvl{color:var(--gold);letter-spacing:.26em}
 

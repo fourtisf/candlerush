@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none"><defs>
+<linearGradient id="aufv" x1="0" y1="0" x2=".55" y2="1">
+  <stop offset="0" stop-color="#FFF8E2"/><stop offset=".18" stop-color="#FFDD8C"/>
+  <stop offset=".46" stop-color="#F5B93F"/><stop offset=".62" stop-color="#D08D18"/>
+  <stop offset=".82" stop-color="#F7C862"/><stop offset="1" stop-color="#FFE9AE"/>
+</linearGradient>
+<linearGradient id="auEfv" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#FFEFC0"/><stop offset="1" stop-color="#9C6A0E"/>
+</linearGradient>
+<linearGradient id="emfv" x1="0" y1="0" x2=".5" y2="1">
+  <stop offset="0" stop-color="#B6FFE4"/><stop offset=".42" stop-color="#31EEA9"/>
+  <stop offset=".78" stop-color="#0C9A66"/><stop offset="1" stop-color="#57F0BE"/>
+</linearGradient>
+<linearGradient id="bevfv" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#FFFFFF" stop-opacity=".30"/>
+  <stop offset=".45" stop-color="#FFFFFF" stop-opacity=".05"/>
+  <stop offset="1" stop-color="#FFFFFF" stop-opacity=".10"/>
+</linearGradient>
+<linearGradient id="bgfv" x1=".2" y1="0" x2=".8" y2="1">
+  <stop offset="0" stop-color="#1B2657"/><stop offset=".55" stop-color="#0B1030"/>
+  <stop offset="1" stop-color="#05071A"/>
+</linearGradient>
+<radialGradient id="glfv" cx=".5" cy=".16" r=".72">
+  <stop offset="0" stop-color="#FFCE5C" stop-opacity=".30"/>
+  <stop offset="1" stop-color="#FFCE5C" stop-opacity="0"/>
+</radialGradient></defs><rect width="512" height="512" rx="96" fill="url(#bgfv)"/><rect x="176" y="44" width="30" height="424" rx="15" fill="url(#auEfv)"/><rect x="104" y="132" width="174" height="270" rx="52" fill="url(#aufv)"/><rect x="348" y="96" width="22" height="322" rx="11" fill="#31EEA9" opacity=".6"/><rect x="300" y="168" width="116" height="196" rx="36" fill="url(#emfv)"/></svg>

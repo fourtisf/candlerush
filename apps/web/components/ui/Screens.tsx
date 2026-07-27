@@ -6,6 +6,7 @@ import { useAccount, type Account } from '../../lib/account';
 import { money, shortAddress, short } from '../../lib/format';
 import { charThumb, rgb, skyThumb } from '../game/sprites';
 import { WalletButton } from './WalletButton';
+import { Wordmark } from './Wordmark';
 
 /* ── profile ───────────────────────────────────────────────────────────────── */
 
@@ -19,10 +20,8 @@ export function ProfileScreen({ on, onEnter, onError }: { on: boolean; onEnter: 
     <section className={`scr${on ? ' on' : ''}`}>
       <div className="pan">
         <div className="eyebrow">ROBINHOOD CHAIN · ARCADE</div>
-        <h1>
-          CANDLE<span className="b">RUSH</span>
-        </h1>
-        <p className="lede">Ninety seconds on the chart. Ride the candles, bank the close.</p>
+        <Wordmark className="logo" />
+        <p className="lede">Ride the candles, bank the close.</p>
         <input
           type="text"
           maxLength={14}

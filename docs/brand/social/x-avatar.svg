@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none"><defs>
+<linearGradient id="auxa" x1="0" y1="0" x2=".55" y2="1">
+  <stop offset="0" stop-color="#FFF8E2"/><stop offset=".18" stop-color="#FFDD8C"/>
+  <stop offset=".46" stop-color="#F5B93F"/><stop offset=".62" stop-color="#D08D18"/>
+  <stop offset=".82" stop-color="#F7C862"/><stop offset="1" stop-color="#FFE9AE"/>
+</linearGradient>
+<linearGradient id="auExa" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#FFEFC0"/><stop offset="1" stop-color="#9C6A0E"/>
+</linearGradient>
+<linearGradient id="emxa" x1="0" y1="0" x2=".5" y2="1">
+  <stop offset="0" stop-color="#B6FFE4"/><stop offset=".42" stop-color="#31EEA9"/>
+  <stop offset=".78" stop-color="#0C9A66"/><stop offset="1" stop-color="#57F0BE"/>
+</linearGradient>
+<linearGradient id="bevxa" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#FFFFFF" stop-opacity=".30"/>
+  <stop offset=".45" stop-color="#FFFFFF" stop-opacity=".05"/>
+  <stop offset="1" stop-color="#FFFFFF" stop-opacity=".10"/>
+</linearGradient>
+<linearGradient id="bgxa" x1=".2" y1="0" x2=".8" y2="1">
+  <stop offset="0" stop-color="#1B2657"/><stop offset=".55" stop-color="#0B1030"/>
+  <stop offset="1" stop-color="#05071A"/>
+</linearGradient>
+<radialGradient id="glxa" cx=".5" cy=".16" r=".72">
+  <stop offset="0" stop-color="#FFCE5C" stop-opacity=".30"/>
+  <stop offset="1" stop-color="#FFCE5C" stop-opacity="0"/>
+</radialGradient></defs><defs><radialGradient id="bloomxa" cx=".5" cy=".18" r=".8"><stop offset="0" stop-color="#FFCE5C" stop-opacity=".17"/><stop offset="1" stop-color="#FFCE5C" stop-opacity="0"/></radialGradient></defs><rect width="512" height="512" fill="url(#bgxa)"/><rect width="512" height="512" fill="url(#bloomxa)"/><g transform="translate(76.8 76.8) scale(0.7)"><rect x="171" y="52" width="26" height="410" rx="13" fill="url(#auExa)"/><rect x="106" y="140" width="156" height="262" rx="46" fill="url(#auxa)"/><rect x="118" y="156" width="124" height="86" rx="34" fill="#FFFFFF" opacity=".2"/><rect x="342" y="106" width="20" height="312" rx="10" fill="#31EEA9" opacity=".55"/><rect x="298" y="176" width="108" height="190" rx="32" fill="url(#emxa)"/></g></svg>
