@@ -45,6 +45,10 @@ export async function testServer(): Promise<FastifyInstance> {
 export async function reset(): Promise<void> {
   await prisma.ledgerEntry.deleteMany();
   await prisma.session.deleteMany();
+  // Cascades to DailyResult. A settled day surviving between tests would make every
+  // settlement after the first one a silent no-op — which is exactly what it is supposed
+  // to be in production, and exactly what makes it invisible in a test.
+  await prisma.dailyClose.deleteMany();
   await prisma.player.deleteMany();
   await redis().flushdb();
 }

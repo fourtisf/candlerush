@@ -36,6 +36,12 @@ model Player {
   // replay would need to take the client's word for it.
   handicap Float @default(0)
 
+  // Consecutive UTC days with a scored session. Display only — it buys nothing, so
+  // there is no incentive to game it, and it costs nothing to be wrong about.
+  playStreak   Int     @default(0)
+  bestStreak   Int     @default(0)
+  lastPlayedOn String? // UTC day key, "YYYY-MM-DD"
+
   flagged   Boolean  @default(false) // suspected automation — never auto-ban
   banned    Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -127,4 +133,32 @@ enum LedgerKind {
   DAILY_PRIZE
   ADJUSTMENT
   GUEST_MIGRATION
+}
+
+// One settled day.
+//
+// Its existence is the whole point: the primary key on `day` is what makes settling a day
+// twice impossible, so the close can run lazily off whoever happens to ask first rather
+// than off a scheduler that might not be running.
+model DailyClose {
+  day       String   @id // UTC "YYYY-MM-DD"
+  settledAt DateTime @default(now())
+  entrants  Int      @default(0)
+  paid      Int      @default(0) // total prize money awarded that day
+
+  results DailyResult[]
+}
+
+model DailyResult {
+  id       String     @id @default(cuid())
+  day      String
+  close    DailyClose @relation(fields: [day], references: [day], onDelete: Cascade)
+  rank     Int
+  playerId String
+  name     String // snapshotted: a rename must not rewrite who won on a past day
+  score    Int
+  prize    Int    @default(0)
+
+  @@unique([day, rank])
+  @@index([playerId])
 }

@@ -26,6 +26,7 @@ import { append, computeBalance, refreshBalanceCache, serializable } from '../se
 import * as lb from '../services/leaderboard.js';
 import { nextHandicap, owns } from '../services/players.js';
 import { ReplayTimeoutError, type AnyReplayPool } from '../services/replay-pool.js';
+import { nextStreak, settleYesterday } from '../services/daily.js';
 import { refundStake, refundStranded } from '../services/stakes.js';
 
 /** The player cannot cover the stake they asked for. */
@@ -395,6 +396,9 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
           // a zero-scoring run has spent it. Neither is eligible for a refund.
           await tx.session.updateMany({ where: { id: session.id }, data: { stakeSettled: true } });
 
+          // A reason to come back tomorrow that costs nothing and buys nothing, so there
+          // is no incentive to farm it and no harm in being wrong about it.
+          const streak = nextStreak(player.lastPlayedOn, player.playStreak);
           const updated = await tx.player.update({
             where: { id: player.id },
             data: {
@@ -402,6 +406,9 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
               bestSession: score > player.bestSession ? score : undefined,
               handicap: nextHandicap(player.handicap, result.candles),
               flagged: flagged ? true : undefined,
+              playStreak: streak.playStreak,
+              bestStreak: Math.max(player.bestStreak, streak.playStreak),
+              lastPlayedOn: streak.lastPlayedOn,
             },
           });
           return updated;
@@ -415,6 +422,8 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
 
         const balance = await refreshBalanceCache(player.id);
         if (score > 0) await lb.record(player.id, score);
+        // A submission is as good a moment as any to notice the day rolled over.
+        void settleYesterday(req.log);
         const [daily, alltime] = await Promise.all([
           lb.rankOf('daily', player.id),
           lb.rankOf('alltime', player.id),

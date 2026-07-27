@@ -36,6 +36,8 @@ export const playerSchema = z.object({
   name: z.string(),
   /** False while the name is still the placeholder the server assigned at sign-in. */
   named: z.boolean(),
+  playStreak: z.number().int(),
+  bestStreak: z.number().int(),
   activeChar: z.string(),
   activeMap: z.string(),
   unlockedChars: z.array(z.string()),
@@ -178,10 +180,27 @@ export const leaderboardEntry = z.object({
   mapId: z.string(),
 });
 
+export const podiumSchema = z.object({
+  day: z.string(),
+  entrants: z.number().int(),
+  paid: z.number().int(),
+  results: z.array(
+    z.object({
+      rank: z.number().int(),
+      playerId: z.string(),
+      name: z.string(),
+      score: z.number().int(),
+      prize: z.number().int(),
+    }),
+  ),
+});
+
 export const leaderboardReply = z.object({
   window: z.string(),
   entries: z.array(leaderboardEntry),
   me: leaderboardEntry.nullable(),
+  /** The last settled day, so the reset is an event rather than a board going blank. */
+  yesterday: podiumSchema.nullable(),
 });
 
 export const healthReply = z.object({

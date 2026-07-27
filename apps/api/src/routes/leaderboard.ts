@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { leaderboardQuery, leaderboardReply } from '../schemas.js';
+import { lastPodium, settleYesterday } from '../services/daily.js';
 import * as lb from '../services/leaderboard.js';
 
 export const leaderboardRoutes: FastifyPluginAsync = async (app) => {
@@ -15,6 +16,9 @@ export const leaderboardRoutes: FastifyPluginAsync = async (app) => {
     },
     async (req) => {
       const { window, limit } = req.query;
+      // Whoever opens the board first after midnight is what closes yesterday. It cannot
+      // throw into this response and it is a single indexed lookup once the day is done.
+      await settleYesterday(req.log);
       const entries = await lb.top(window, limit);
 
       let me: lb.Entry | null = null;
@@ -37,7 +41,7 @@ export const leaderboardRoutes: FastifyPluginAsync = async (app) => {
           }
         }
       }
-      return { window, entries, me };
+      return { window, entries, me, yesterday: await lastPodium() };
     },
   );
 };

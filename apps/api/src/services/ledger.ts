@@ -56,7 +56,7 @@ export interface EntryInput {
   kind: LedgerKind;
   /** Signed: credits positive, purchases negative. */
   amount: number;
-  refType: 'session' | 'unlock' | 'admin' | 'guest';
+  refType: 'session' | 'unlock' | 'admin' | 'guest' | 'daily';
   /**
    * Must be globally unique for its (refType, kind) pair — the database's unique index is
    * global, not per player. Session ids already are; anything keyed by an item id has to

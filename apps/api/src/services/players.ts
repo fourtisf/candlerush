@@ -8,6 +8,8 @@ export function publicPlayer(p: Player) {
     address: p.address,
     name: p.name,
     named: p.named,
+    playStreak: p.playStreak,
+    bestStreak: p.bestStreak,
     activeChar: p.activeChar,
     activeMap: p.activeMap,
     unlockedChars: p.unlockedChars,

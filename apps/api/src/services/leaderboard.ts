@@ -24,6 +24,9 @@ export function isoWeekKey(at: Date): string {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
+/** The daily key for a specific day string, so a settled day can be read back by name. */
+export const dailyKeyFor = (day: string): string => k('lb', 'daily', day);
+
 export function keysFor(at: Date): Record<Window, string> {
   return {
     daily: k('lb', 'daily', dayKey(at)),
@@ -57,7 +60,11 @@ export interface Entry {
 }
 
 export async function top(window: Window, limit: number, at = new Date()): Promise<Entry[]> {
-  const key = keysFor(at)[window];
+  return topForKey(keysFor(at)[window], limit);
+}
+
+/** The same read against a key chosen by the caller — used to settle a day by name. */
+export async function topForKey(key: string, limit: number): Promise<Entry[]> {
   const raw = await redis().zrevrange(key, 0, limit - 1, 'WITHSCORES');
   const ids: string[] = [];
   const scores: number[] = [];
