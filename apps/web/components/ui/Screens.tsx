@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAccount, type Account } from '../../lib/account';
 import { money, shortAddress, short } from '../../lib/format';
 import { charThumb, rgb, skyThumb } from '../game/sprites';
+import { ContractAddress } from './ContractAddress';
 import { WalletButton } from './WalletButton';
 import { Wordmark } from './Wordmark';
 
@@ -22,6 +23,7 @@ export function ProfileScreen({ on, onEnter, onError }: { on: boolean; onEnter: 
         <div className="eyebrow">ROBINHOOD CHAIN · ARCADE</div>
         <Wordmark className="logo" />
         <p className="lede">Ride the candles, bank the close.</p>
+        <ContractAddress />
         <input
           type="text"
           maxLength={14}

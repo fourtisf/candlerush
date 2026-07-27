@@ -307,6 +307,27 @@ export function Game() {
     setPaused(next);
   }, []);
 
+  /**
+   * Turning the phone upright hides the game behind the rotate prompt, so the run must
+   * stop with it. Without this a player who checks a message loses a session to a screen
+   * they cannot see.
+   */
+  useEffect(() => {
+    if (screen !== 'playing') return;
+    const portrait = window.matchMedia('(orientation: portrait) and (max-width: 900px)');
+    const apply = () => {
+      const session = sessionRef.current;
+      if (!session || session.sim.mode === 'ended') return;
+      if (portrait.matches && !session.paused) {
+        session.setPaused(true);
+        setPaused(true);
+      }
+    };
+    apply();
+    portrait.addEventListener('change', apply);
+    return () => portrait.removeEventListener('change', apply);
+  }, [screen]);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const session = sessionRef.current;
@@ -363,7 +384,7 @@ export function Game() {
   const inRun = screen === 'playing' && !reviving && !levelClear;
 
   return (
-    <div id="stage">
+    <div id="stage" className={screen === 'playing' ? 'playing' : ''}>
       <canvas id="game" ref={canvasRef} onPointerDown={onPointerDown} onPointerUp={onPointerUp} />
 
       <Hud
@@ -421,11 +442,18 @@ export function Game() {
         onHub={() => backToMenu('hub')}
       />
 
+      {/* Only while a run is live. The menus read fine in portrait, and blocking the whole
+          site behind this was hiding the game from anyone arriving on a phone. */}
       <div id="rotate">
         <div>
+          <svg viewBox="0 0 64 44" aria-hidden="true">
+            <rect x="1.5" y="1.5" width="41" height="26" rx="4" />
+            <rect x="47" y="6" width="15.5" height="32" rx="3.5" />
+            <path d="M46 30 A 14 14 0 0 1 32 40" strokeDasharray="3 4" />
+          </svg>
           <b>Turn your phone</b>
           Candle Rush runs at a fixed 1280×720 so every player gets the same chart from the
-          same seed. It needs a landscape screen.
+          same seed. Your session is paused — it picks up where you left it.
         </div>
       </div>
 

@@ -61,7 +61,11 @@ button{font-family:var(--M);cursor:pointer;border:0;background:none;color:inheri
 .scr{position:absolute;inset:0;display:grid;place-items:center;padding:22px;opacity:0;pointer-events:none;transition:opacity .35s;overflow-y:auto}
 .scr.on{opacity:1;pointer-events:auto}
 .scr::before{content:'';position:absolute;inset:0;background:radial-gradient(125% 95% at 50% 42%,rgba(6,8,28,.32),rgba(6,8,28,.9) 72%)}
-.pan{position:relative;width:min(450px,100%);text-align:center;padding:18px 0}
+/* minmax(0,1fr) and min-width:0 are load-bearing: the default `auto` grid track is sized
+   by max-content, so a single unbreakable string — a 42-character contract address — drags
+   the whole panel wider than the phone and pushes the buttons off screen. */
+.scr{grid-template-columns:minmax(0,1fr)}
+.pan{position:relative;width:min(450px,100%);min-width:0;text-align:center;padding:18px 0}
 .eyebrow{font-size:8.5px;letter-spacing:.34em;color:var(--gold);margin-bottom:14px}
 h1{font-family:var(--D);font-weight:800;letter-spacing:-.055em;line-height:.82;font-size:clamp(50px,13.5vw,90px)}
 h1 .b{display:block;color:var(--gold)}
@@ -140,12 +144,43 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
 #buffs{top:calc(84px + env(safe-area-inset-top))}
 .wal .l1,.wal .l2,.pk .l1,.pk .l2{display:block}
 
-/* The simulation runs at a fixed 1280x720 so every player gets the same chart from the
-   same seed. On a portrait phone that band is small enough to be worth a nudge. */
-#rotate{position:fixed;inset:0;display:none;place-items:center;text-align:center;padding:32px;
-  background:#06081C;z-index:40;font-size:11px;letter-spacing:.2em;line-height:2.2;color:var(--dim)}
-#rotate b{display:block;font-family:var(--D);font-weight:800;font-size:22px;letter-spacing:-.02em;color:var(--ink);margin-bottom:12px}
-@media (orientation:portrait) and (max-width:820px){#rotate{display:grid}}
+/* The simulation runs at a fixed 1280x720, so a live run needs a landscape screen.
+   Only a live run: the menus read perfectly well upright, and gating the whole site behind
+   this meant anyone opening the link on a phone saw a black wall and nothing else. */
+#rotate{position:fixed;inset:0;display:none;place-items:center;text-align:center;
+  padding:calc(32px + env(safe-area-inset-top)) 30px calc(32px + env(safe-area-inset-bottom));
+  background:radial-gradient(120% 80% at 50% 20%,#131A3E,#06081C 70%);z-index:40;
+  font-size:10.5px;letter-spacing:.18em;line-height:2.1;color:var(--dim)}
+#rotate>div{max-width:340px}
+#rotate svg{width:64px;height:44px;margin:0 auto 20px;display:block;stroke:var(--gold);fill:none;
+  stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.85;animation:turn 2.6s ease-in-out infinite}
+@keyframes turn{0%,58%,100%{transform:none}72%,88%{transform:rotate(-8deg)}}
+#rotate b{display:block;font-family:var(--D);font-weight:800;font-size:23px;letter-spacing:-.02em;
+  color:var(--ink);margin-bottom:12px}
+@media (orientation:portrait) and (max-width:900px){#stage.playing #rotate{display:grid}}
+
+/* ── the contract address, one tap to copy ─────────────────────────────────── */
+.ca{display:flex;align-items:center;width:100%;margin:0 0 16px;padding:9px 11px 9px 13px;
+  border-radius:12px;background:rgba(255,206,92,.07);border:1px solid rgba(255,206,92,.28);
+  transition:.16s;text-align:left}
+.ca:hover{background:rgba(255,206,92,.13);border-color:rgba(255,206,92,.5)}
+.ca:active{transform:scale(.99)}
+.ca .k1{font-size:8.5px;letter-spacing:.22em;color:var(--gold);padding-right:11px;
+  border-right:1px solid rgba(255,206,92,.24);flex:0 0 auto}
+/* Selectable on purpose: the body turns selection off so a drag on the chart does not
+   highlight the HUD, but this is the one string people need to get out of the page. */
+.ca .v{flex:1;min-width:0;padding:0 11px;font-size:11px;letter-spacing:.1em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  user-select:text;-webkit-user-select:text}
+.ca .v.soon{color:var(--dim);letter-spacing:.2em}
+.ca .cp{display:flex;align-items:center;gap:6px;font-size:8.5px;letter-spacing:.18em;
+  color:var(--dim);flex:0 0 auto}
+.ca .cp b{font-weight:400}
+.ca .cp svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+.ca.done{border-color:rgba(34,230,160,.6);background:rgba(34,230,160,.1)}
+.ca.done .cp{color:var(--bull)}
+.ca.failed .cp{color:var(--gold)}
 
 .lb{width:100%;margin:14px 0;border:1px solid var(--edge);border-radius:14px;overflow:hidden}
 .lb .row{display:flex;align-items:center;gap:10px;padding:10px 13px;background:rgba(9,7,24,.6);border-bottom:1px solid var(--edge);text-align:left}
@@ -169,6 +204,73 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
 
 /* The level counter sits where "CLOSE IN" used to, above the level clock. */
 .k.lvl{color:var(--gold);letter-spacing:.26em}
+
+/* ── small screens ─────────────────────────────────────────────────────────── */
+/* Two shapes to handle, and they are not the same problem.
+   A phone in landscape is ~360-420px TALL, so the opening panel runs off the bottom and
+   the button that starts the game is the first thing to go. Height is the constraint.
+   A phone in portrait is ~360-430px WIDE with plenty of height, so the grids need fewer
+   columns and everything needs to stop assuming a 450px panel. Width is the constraint. */
+
+@media (max-height:560px){
+  .scr{padding:12px;align-items:start}
+  .pan{padding:8px 0}
+  .logo{width:min(100%,290px)}
+  .eyebrow{margin-bottom:8px}
+  .lede{margin:9px auto 13px;font-size:9.5px;line-height:1.7;max-width:270px}
+  .ca{margin-bottom:11px;padding:7px 10px 7px 11px}
+  input[type=text]{padding:11px 14px;font-size:15px}
+  .wal{padding:10px 13px;margin-top:8px}
+  .cta{padding:12px 26px;font-size:14px}
+  .ghost{margin-top:8px;padding:6px}
+  .keys{margin-top:10px;line-height:1.9}
+  .bal{font-size:clamp(28px,7vw,38px)}
+  .who{margin-top:7px}
+  .pick{margin:13px 0 11px}
+  .pk{padding:9px}
+  .grid{gap:7px;margin:12px 0}
+  .card{padding:10px 9px}
+  .card .av,.card .thumb{height:44px;margin-bottom:6px}
+  .card .av img{width:42px;height:42px}
+  .big{font-size:clamp(28px,7.5vw,42px)}
+  .stats{margin:13px 0}
+  .st{padding:9px 4px}
+  .st .v{font-size:15px}
+  .lvlpan{padding:16px 16px 14px;border-radius:18px}
+  .lvlbadge{margin-bottom:10px;padding:5px 12px}
+  .acts .cta{padding:11px 10px;font-size:13px}
+  .lvlpan .bar{margin-top:10px}
+  .lvlpan .keys{margin-top:8px}
+  .lb{margin:9px 0}
+  .lb .row{padding:7px 11px}
+  #hud{padding:calc(8px + env(safe-area-inset-top)) 10px 10px}
+  #buffs{top:calc(66px + env(safe-area-inset-top))}
+  #regime{top:calc(46px + env(safe-area-inset-top))}
+}
+
+@media (orientation:portrait) and (max-width:900px){
+  .pan{width:min(430px,100%)}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(118px,1fr))}
+  .pick{grid-template-columns:1fr}
+  .scr{padding:20px 16px calc(20px + env(safe-area-inset-bottom))}
+  .logo{width:min(100%,330px)}
+  .ca .v{font-size:10px;letter-spacing:.06em}
+  /* The sim is a fixed 1280x720 and the canvas letterboxes it, so upright the whole world
+     is a thin horizontal stripe across the middle of the screen — which reads as a broken
+     image sitting behind the menu. Bury it and keep only the colour. */
+  .scr::before{background:radial-gradient(120% 80% at 50% 32%,
+    rgba(6,8,28,.88),rgba(6,8,28,.975) 62%)}
+}
+
+/* Only where the label genuinely has no room left. */
+@media (max-width:361px){.ca .cp b{display:none}}
+
+/* Narrow enough that the copy label is competing with the address for the same room. */
+@media (max-width:400px){
+  .ca{padding:8px 9px 8px 11px}
+  .ca .k1{padding-right:9px}
+  .ca .v{padding:0 9px}
+}
 
 /* ── level-clear panel ─────────────────────────────────────────────────────── */
 /* The one screen that interrupts a live run, so unlike the menus it gets a real card:

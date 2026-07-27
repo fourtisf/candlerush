@@ -27,6 +27,30 @@ git reset --hard "origin/$BRANCH"
 ok "$(git log --oneline -1)"
 [ "$BEFORE" = "$(git rev-parse HEAD)" ] && warn "already up to date — rebuilding anyway"
 
+# NEXT_PUBLIC_* are baked into the bundle at build time, so publishing the contract address
+# is a rebuild rather than a restart. Set it on the command line and this writes it in:
+#
+#   CONTRACT_ADDRESS=0xabc… bash deploy/update.sh
+#
+# Left unset, whatever is already in .env.local stands — and if that is empty too, the
+# opening screen reads COMING SOON, which is the honest answer until there is a token.
+WEBENV=apps/web/.env.local
+upsert() { # key value file
+  if grep -q "^$1=" "$3" 2>/dev/null; then
+    sed -i "s#^$1=.*#$1=$2#" "$3"
+  else
+    printf '%s=%s\n' "$1" "$2" >> "$3"
+  fi
+}
+if [ -f "$WEBENV" ]; then
+  DOMAIN_GUESS=$(sed -n 's#^NEXT_PUBLIC_SIWE_URI=##p' "$WEBENV" | tail -1)
+  [ -n "${DOMAIN_GUESS:-}" ] && upsert NEXT_PUBLIC_SITE_URL "$DOMAIN_GUESS" "$WEBENV"
+  if [ -n "${CONTRACT_ADDRESS:-}" ]; then
+    upsert NEXT_PUBLIC_CONTRACT_ADDRESS "$CONTRACT_ADDRESS" "$WEBENV"
+    ok "contract address set to $CONTRACT_ADDRESS"
+  fi
+fi
+
 say "Installing and building"
 pnpm install --frozen-lockfile 2>&1 | tail -3
 pnpm --filter @candle-rush/engine build

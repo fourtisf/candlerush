@@ -339,6 +339,10 @@ NEXT_PUBLIC_SIWE_DOMAIN=$DOMAIN
 NEXT_PUBLIC_SIWE_URI=https://$DOMAIN
 NEXT_PUBLIC_RHC_CHAIN_ID=$RHC_CHAIN_ID
 NEXT_PUBLIC_RHC_RPC_URL=${RHC_RPC_URL:-}
+NEXT_PUBLIC_SITE_URL=https://$DOMAIN
+# Left empty until the token exists — the opening screen then reads COMING SOON. Fill it
+# in and rerun deploy/update.sh; it is baked in at build time, so a restart is not enough.
+NEXT_PUBLIC_CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-}
 EOF
 ok "apps/api/.env and apps/web/.env.local written (secrets generated locally)"
 
