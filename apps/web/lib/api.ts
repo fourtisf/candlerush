@@ -44,6 +44,8 @@ export interface PlayerDto {
   address: string;
   name: string;
   named: boolean;
+  playStreak: number;
+  bestStreak: number;
   activeChar: CharId;
   activeMap: MapId;
   unlockedChars: CharId[];
@@ -59,17 +61,29 @@ export interface MeDto {
   balance: number;
 }
 
+export interface StakeDto {
+  id: string;
+  name: string;
+  cost: number;
+  mult: number;
+}
+
 export interface SessionStartDto {
   sessionId: string;
   seed: number;
   engineVersion: number;
   config: SessionConfig;
+  stake: StakeDto;
+  balance: number;
   issuedAt: string;
 }
 
 export interface SubmitDto {
+  /** What the run was worth on its own — the leaderboard number. */
   score: number;
+  /** What it paid, after the stake multiplier. */
   credited: number;
+  stake: { id: string; cost: number; mult: number; net: number };
   balance: number;
   best: number;
   isBest: boolean;
@@ -93,10 +107,31 @@ export interface LeaderboardEntryDto {
   mapId: string;
 }
 
+export interface PodiumDto {
+  day: string;
+  entrants: number;
+  paid: number;
+  results: { rank: number; playerId: string; name: string; score: number; prize: number }[];
+}
+
 export interface LeaderboardDto {
   window: string;
   entries: LeaderboardEntryDto[];
   me: LeaderboardEntryDto | null;
+  yesterday: PodiumDto | null;
+}
+
+export interface ReplayDto {
+  sessionId: string;
+  name: string;
+  config: SessionConfig;
+  score: number;
+  level: number;
+  candles: number;
+  bestMult: number;
+  endReason: string | null;
+  playedAt: string;
+  inputs: InputEvent[];
 }
 
 export const api = {
@@ -109,8 +144,10 @@ export const api = {
     post<{ token: string; player: PlayerDto; balance: number }>('/auth/verify', { message, signature }),
   logout: () => post<unknown>('/auth/logout'),
 
-  startSession: (mapId: MapId, charId: CharId) =>
-    post<SessionStartDto>('/session/start', { mapId, charId }),
+  startSession: (mapId: MapId, charId: CharId, stakeId?: string) =>
+    post<SessionStartDto>('/session/start', { mapId, charId, stakeId }),
+  abandonSession: (sessionId: string) =>
+    post<{ abandoned: boolean; refunded: number; balance: number }>('/session/abandon', { sessionId }),
   submitSession: (payload: {
     sessionId: string;
     inputs: InputEvent[];
@@ -122,4 +159,6 @@ export const api = {
 
   leaderboard: (window: 'daily' | 'weekly' | 'alltime', limit = 25) =>
     call<LeaderboardDto>(`/leaderboard?window=${window}&limit=${limit}`),
+
+  replay: (sessionId: string) => call<ReplayDto>(`/replay/${encodeURIComponent(sessionId)}`),
 };

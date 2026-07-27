@@ -2,7 +2,7 @@
 
 import { charById, mapById, priceOf, type CharId, type MapId, type SessionConfig } from '@candle-rush/engine';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, api, type PlayerDto, type SubmitDto } from './api';
+import { ApiError, api, type PlayerDto, type StakeDto, type SubmitDto } from './api';
 import { emptyGuest, guestSeed, loadGuest, nextHandicap, saveGuest, type GuestProfile } from './guest';
 
 /**
@@ -20,6 +20,9 @@ export interface Account {
   name: string;
   /** Whether the player has chosen this name. A server placeholder does not count. */
   named: boolean;
+  /** Consecutive UTC days with a scored session. Display only. */
+  playStreak: number;
+  bestStreak: number;
   balance: number;
   chars: CharId[];
   maps: MapId[];
@@ -36,6 +39,8 @@ export interface StartedSession {
   config: SessionConfig;
   sessionId?: string;
   firstRun: boolean;
+  /** Resolved by the server. A guest always plays paper — there is nothing to stake. */
+  stake: StakeDto;
 }
 
 interface Ctx {
@@ -47,7 +52,7 @@ interface Ctx {
   setName: (name: string) => Promise<boolean>;
   select: (kind: 'char' | 'map', id: string) => Promise<void>;
   unlock: (itemId: string) => Promise<boolean>;
-  startSession: () => Promise<StartedSession>;
+  startSession: (stakeId?: string) => Promise<StartedSession>;
   finishSession: (args: {
     sessionId?: string;
     inputs: readonly (readonly [number, number])[];
@@ -69,6 +74,10 @@ function fromGuest(g: GuestProfile): Account {
     ready: true,
     name: g.name,
     named: g.named,
+    // Guests have no server-side day tracking, so there is no streak to show rather than
+    // a locally invented one nobody else can see.
+    playStreak: 0,
+    bestStreak: 0,
     balance: g.balance,
     chars: g.chars,
     maps: g.maps,
@@ -85,6 +94,8 @@ function fromPlayer(p: PlayerDto, balance: number): Account {
     ready: true,
     name: p.name,
     named: p.named,
+    playStreak: p.playStreak,
+    bestStreak: p.bestStreak,
     balance,
     chars: p.unlockedChars,
     maps: p.unlockedMaps,
@@ -211,22 +222,35 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     [player, guest.balance, mutateGuest, report],
   );
 
-  const startSession = useCallback(async (): Promise<StartedSession> => {
-    if (player) {
-      const started = await api.startSession(player.p.activeMap, player.p.activeChar);
-      return { config: started.config, sessionId: started.sessionId, firstRun: player.p.totalSessions === 0 };
-    }
-    return {
-      config: {
-        seed: guestSeed(),
-        mapId: guest.map,
-        charId: guest.char,
-        handicap: guest.handicap,
-        engineVersion: (await import('@candle-rush/engine')).ENGINE_VERSION,
-      },
-      firstRun: guest.firstRun,
-    };
-  }, [player, guest.map, guest.char, guest.handicap, guest.firstRun]);
+  const startSession = useCallback(
+    async (stakeId?: string): Promise<StartedSession> => {
+      if (player) {
+        const started = await api.startSession(player.p.activeMap, player.p.activeChar, stakeId);
+        // The stake has already left the balance by the time this resolves, so reflect it
+        // rather than waiting for the next refresh to explain where the money went.
+        setPlayer((prev) => (prev ? { ...prev, balance: started.balance } : prev));
+        return {
+          config: started.config,
+          sessionId: started.sessionId,
+          firstRun: player.p.totalSessions === 0,
+          stake: started.stake,
+        };
+      }
+      // Guests have no ledger, so there is nothing to put at risk and nothing to multiply.
+      return {
+        config: {
+          seed: guestSeed(),
+          mapId: guest.map,
+          charId: guest.char,
+          handicap: guest.handicap,
+          engineVersion: (await import('@candle-rush/engine')).ENGINE_VERSION,
+        },
+        firstRun: guest.firstRun,
+        stake: { id: 'paper', name: 'Paper', cost: 0, mult: 1 },
+      };
+    },
+    [player, guest.map, guest.char, guest.handicap, guest.firstRun],
+  );
 
   const finishSession = useCallback<Ctx['finishSession']>(
     async ({ sessionId, inputs, clientScore, clientDigest, candles }) => {

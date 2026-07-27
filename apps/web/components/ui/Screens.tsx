@@ -6,6 +6,7 @@ import { useAccount, type Account } from '../../lib/account';
 import { money, shortAddress, short } from '../../lib/format';
 import { charThumb, rgb, skyThumb } from '../game/sprites';
 import { ContractAddress } from './ContractAddress';
+import { StakePicker } from './StakePicker';
 import { WalletButton } from './WalletButton';
 import { Wordmark } from './Wordmark';
 
@@ -112,6 +113,9 @@ export function HubScreen({
   onChars,
   onMaps,
   onLeaderboard,
+  onHowTo,
+  stake,
+  onStake,
   starting,
 }: {
   on: boolean;
@@ -119,22 +123,76 @@ export function HubScreen({
   onChars: () => void;
   onMaps: () => void;
   onLeaderboard: () => void;
+  onHowTo: () => void;
+  stake: string;
+  onStake: (id: string) => void;
   starting: boolean;
 }) {
-  const { account, error } = useAccount();
+  const { account, setName, error } = useAccount();
   const char = charById(account.char);
   const map = mapById(account.map);
   const thumb = useMemo(() => (on ? charThumb(char, 34) : ''), [char, on]);
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(account.name);
+
+  useEffect(() => setDraft(account.name), [account.name]);
+
+  const saveName = async () => {
+    if (nameProblem(draft)) return;
+    if (await setName(draft)) setRenaming(false);
+  };
 
   return (
     <section className={`scr${on ? ' on' : ''}`}>
       <div className="pan">
         <div className="k">ACCOUNT BALANCE</div>
         <div className="bal">{money(account.balance)}</div>
-        <div className="who">
-          <b>{account.name || 'TRADER'}</b>
-          <span>{account.address ? `· ${shortAddress(account.address)}` : '· LOCAL'}</span>
-        </div>
+        {renaming ? (
+          <div className="renamer">
+            <input
+              type="text"
+              maxLength={NAME_MAX}
+              value={draft}
+              autoFocus
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(e) => setDraft(e.target.value.toUpperCase())}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void saveName();
+                if (e.key === 'Escape') {
+                  setDraft(account.name);
+                  setRenaming(false);
+                }
+              }}
+            />
+            <button className={`mini${nameProblem(draft) ? ' off' : ''}`} onClick={() => void saveName()}>
+              SAVE
+            </button>
+            <button
+              className="mini ghosty"
+              onClick={() => {
+                setDraft(account.name);
+                setRenaming(false);
+              }}
+            >
+              CANCEL
+            </button>
+          </div>
+        ) : (
+          <button className="who" onClick={() => setRenaming(true)} title="Change your name">
+            <b>{account.name || 'TRADER'}</b>
+            <span>{account.address ? `· ${shortAddress(account.address)}` : '· LOCAL'}</span>
+            <i className="pen" aria-hidden="true">
+              EDIT
+            </i>
+          </button>
+        )}
+        {account.playStreak > 1 && (
+          <div className="streak">
+            {account.playStreak} DAY STREAK
+            {account.bestStreak > account.playStreak ? ` · BEST ${account.bestStreak}` : ''}
+          </div>
+        )}
         <div className="pick">
           <button className="pk" onClick={onChars}>
             {thumb ? <img src={thumb} alt="" /> : <span className="sw" />}
@@ -155,12 +213,20 @@ export function HubScreen({
             </span>
           </button>
         </div>
+        {account.mode === 'player' && (
+          <StakePicker value={stake} balance={account.balance} onPick={onStake} />
+        )}
         <button className={`cta g wide${starting ? ' busy' : ''}`} onClick={onPlay}>
           {starting ? 'Opening…' : 'Open the session'}
         </button>
-        <button className="ghost" onClick={onLeaderboard}>
-          LEADERBOARD
-        </button>
+        <div className="hubnav">
+          <button className="ghost" onClick={onLeaderboard}>
+            LEADERBOARD
+          </button>
+          <button className="ghost" onClick={onHowTo}>
+            HOW TO PLAY
+          </button>
+        </div>
         <div className="keys">
           BEST SESSION {account.best ? money(account.best) : '—'} · {account.runs} SESSIONS
         </div>
@@ -405,6 +471,8 @@ function clamp01(n: number): number {
 export interface Result {
   title: string;
   level: number;
+  /** Absent for a guest run — there is no ledger, so there was nothing at stake. */
+  stake?: { id: string; cost: number; mult: number; net: number };
   score: number;
   credited: number;
   candles: number;
@@ -422,12 +490,16 @@ export function OverScreen({
   result,
   onAgain,
   onHub,
+  onShare,
+  shareState,
   submitting,
 }: {
   on: boolean;
   result: Result | null;
   onAgain: () => void;
   onHub: () => void;
+  onShare: () => void;
+  shareState: 'idle' | 'shared' | 'saved' | 'failed';
   submitting: boolean;
 }) {
   const { account } = useAccount();
@@ -464,12 +536,34 @@ export function OverScreen({
             <div className="l">BEST STREAK</div>
           </div>
         </div>
+        {result.stake && result.stake.cost > 0 && (
+          <div className="netrow">
+            <span>
+              {result.stake.id.toUpperCase()} STAKE −{short(result.stake.cost)} · ×{result.stake.mult}
+            </span>
+            <b className={result.stake.net >= 0 ? 'up' : 'down'}>
+              {result.stake.net >= 0 ? '+' : '−'}
+              {short(Math.abs(result.stake.net))} NET
+            </b>
+          </div>
+        )}
         <button className="cta wide" onClick={onAgain}>
           Trade again
         </button>
-        <button className="ghost" onClick={onHub}>
-          Back to account
-        </button>
+        <div className="hubnav">
+          <button className="ghost" onClick={onHub}>
+            BACK TO ACCOUNT
+          </button>
+          <button className="ghost" onClick={onShare} disabled={submitting}>
+            {shareState === 'shared'
+              ? 'SHARED'
+              : shareState === 'saved'
+                ? 'SAVED TO YOUR DEVICE'
+                : shareState === 'failed'
+                  ? 'COULD NOT SHARE'
+                  : 'SHARE THIS RUN'}
+          </button>
+        </div>
         <div className="note">
           {result.isBest
             ? 'NEW PERSONAL BEST'

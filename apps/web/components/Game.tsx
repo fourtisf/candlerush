@@ -2,6 +2,7 @@
 
 import { ApiError } from '../lib/api';
 import {
+  DEFAULT_STAKE,
   IN,
   REVIVE_SECONDS,
   charById,
@@ -15,8 +16,10 @@ import { AttractLoop } from './game/attract';
 import { Snd } from './game/audio';
 import { Renderer } from './game/renderer';
 import { LiveSession } from './game/session';
+import { HowToPlay } from './ui/HowToPlay';
 import { Hud } from './ui/Hud';
 import { LeaderboardScreen } from './ui/Leaderboard';
+import { drawShareCard, shareCard } from './ui/shareCard';
 import {
   CharScreen,
   HubScreen,
@@ -28,7 +31,7 @@ import {
   type Result,
 } from './ui/Screens';
 
-type Screen = 'profile' | 'hub' | 'chars' | 'maps' | 'leaderboard' | 'playing' | 'over';
+type Screen = 'profile' | 'hub' | 'chars' | 'maps' | 'leaderboard' | 'howto' | 'playing' | 'over';
 
 /**
  * The shell.
@@ -62,6 +65,8 @@ export function Game() {
   const [toast, setToast] = useState<{ text: string; colour: string; key: number } | null>(null);
   const [regime, setRegime] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [stake, setStake] = useState<string>(DEFAULT_STAKE);
+  const [shareState, setShareState] = useState<'idle' | 'shared' | 'saved' | 'failed'>('idle');
 
   const showToast = useCallback((text: string, colour = 'var(--gold)') => {
     setToast({ text, colour, key: Date.now() });
@@ -176,6 +181,7 @@ export function Game() {
         rank: null,
         note: '',
       };
+      setShareState('idle');
       setResult(base);
       setSubmitting(account.mode === 'player');
       setScreen('over');
@@ -198,6 +204,7 @@ export function Game() {
             ...base,
             score: res.score,
             credited: res.credited,
+            stake: res.stake,
             candles: res.stats.candles,
             bestMult: res.stats.bestMult,
             cleanFlips: res.stats.cleanFlips,
@@ -228,7 +235,7 @@ export function Game() {
     setError(null);
     Snd.boot();
     try {
-      const started = await startSession();
+      const started = await startSession(stake);
       attractRef.current?.stop();
       sessionRef.current?.stop();
       renderer.setMap(mapById(started.config.mapId));
@@ -284,7 +291,25 @@ export function Game() {
     } finally {
       setStarting(false);
     }
-  }, [starting, startSession, onEvents, submit, showToast]);
+  }, [starting, startSession, stake, onEvents, submit, showToast]);
+
+  const share = useCallback(async () => {
+    if (!result) return;
+    const blob = await drawShareCard({
+      name: account.name || 'TRADER',
+      score: result.score,
+      level: result.level,
+      candles: result.candles,
+      bestMult: result.bestMult,
+      cashedOut: result.title.startsWith('CLOSED OUT') || result.title.startsWith('ALL LEVELS'),
+      url: 'candlerush.fun',
+    });
+    if (!blob) {
+      setShareState('failed');
+      return;
+    }
+    setShareState(await shareCard(blob, account.name || 'trader'));
+  }, [result, account.name]);
 
   const backToMenu = useCallback(
     (to: Screen) => {
@@ -416,7 +441,11 @@ export function Game() {
         onChars={() => setScreen('chars')}
         onMaps={() => setScreen('maps')}
         onLeaderboard={() => setScreen('leaderboard')}
+        onHowTo={() => setScreen('howto')}
+        stake={stake}
+        onStake={setStake}
       />
+      <HowToPlay on={screen === 'howto'} onBack={() => setScreen('hub')} />
       <CharScreen on={screen === 'chars'} onBack={() => setScreen('hub')} onToast={showToast} />
       <MapScreen on={screen === 'maps'} onBack={() => setScreen('hub')} onToast={showToast} />
       <LeaderboardScreen on={screen === 'leaderboard'} onBack={() => setScreen('hub')} />
@@ -442,6 +471,8 @@ export function Game() {
         submitting={submitting}
         onAgain={() => void play()}
         onHub={() => backToMenu('hub')}
+        onShare={() => void share()}
+        shareState={shareState}
       />
 
       {/* Only while a run is live. The menus read fine in portrait, and blocking the whole

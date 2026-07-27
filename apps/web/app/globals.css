@@ -309,3 +309,99 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
 .actnote span:last-child{color:var(--bull)}
 .lvlpan .bar{margin-top:14px}
 .lvlpan .keys{margin-top:12px;line-height:1.9}
+
+/* ── stakes, rename, streak, how-to, replay ────────────────────────────────── */
+
+/* What the balance is for. Sits in the hub rather than behind a menu because it is the
+   decision that makes having a balance worth anything once everything is unlocked. */
+.stakes{margin:16px 0 14px}
+.stakelab{text-align:left;margin-bottom:7px}
+.stakerow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.stake{display:grid;gap:2px;padding:9px 4px 8px;border-radius:12px;border:1px solid var(--edge);
+  background:rgba(255,244,232,.04);transition:.15s}
+.stake:hover{background:rgba(255,244,232,.09)}
+.stake.on{border-color:var(--gold);background:rgba(255,206,92,.13)}
+/* Dimmed rather than removed: what it costs is the thing worth knowing about a tier you
+   cannot afford yet. */
+.stake.poor{opacity:.34;cursor:not-allowed}
+.stake .sn{font-size:9px;letter-spacing:.14em;color:var(--dim)}
+.stake.on .sn{color:var(--gold)}
+.stake .sm{font-family:var(--D);font-weight:800;font-size:16px;letter-spacing:-.02em}
+.stake .sc{font-size:8px;letter-spacing:.12em;color:var(--faint)}
+.stakenote{font-size:8.5px;letter-spacing:.13em;line-height:1.9;color:var(--faint);
+  margin-top:8px;text-align:left}
+
+.renamer{display:flex;gap:6px;align-items:center;margin-top:10px}
+.renamer input[type=text]{flex:1;min-width:0;padding:9px 12px;font-size:15px}
+.mini{font-size:8.5px;letter-spacing:.16em;padding:9px 11px;border-radius:10px;
+  border:1px solid var(--edge);background:rgba(255,206,92,.12);color:var(--gold);flex:0 0 auto}
+.mini.ghosty{background:none;color:var(--faint)}
+.mini.off{opacity:.4;cursor:not-allowed}
+
+/* The name is a button now, so it has to look like one without shouting. */
+button.who{margin:11px auto 0;padding:4px 8px;border-radius:9px;transition:.15s}
+button.who:hover{background:rgba(255,244,232,.07)}
+.who .pen{font-style:normal;font-size:7.5px;letter-spacing:.16em;color:var(--faint);
+  border:1px solid var(--edge);border-radius:5px;padding:2px 5px}
+.streak{font-size:8.5px;letter-spacing:.2em;color:var(--bull);margin-top:8px}
+
+.hubnav{display:flex;gap:18px;justify-content:center;flex-wrap:wrap}
+.hubnav .ghost{margin-top:12px}
+.netrow{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-size:8.5px;letter-spacing:.14em;color:var(--faint);margin:0 0 12px;
+  border-top:1px solid var(--edge);padding-top:10px}
+.netrow b{font-weight:400;font-size:10px}
+.netrow .up{color:var(--bull)}
+.netrow .down{color:var(--bear)}
+
+.rules{display:grid;gap:10px;margin:18px 0;text-align:left}
+.rule2{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:start;
+  border:1px solid var(--edge);border-radius:13px;padding:12px 13px;
+  background:rgba(255,244,232,.035)}
+.rk{font-size:8px;letter-spacing:.18em;color:var(--dim);padding-top:3px}
+.rb b{display:block;font-family:var(--D);font-weight:800;font-size:13.5px;letter-spacing:-.01em}
+.rb span{display:block;font-size:9.5px;line-height:1.9;color:var(--dim);margin-top:4px}
+
+/* ── replay page ──────────────────────────────────────────────────────────── */
+.replay #game{position:absolute;inset:0}
+.rvtop{position:absolute;top:calc(14px + env(safe-area-inset-top));left:16px;right:16px;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;pointer-events:none}
+.rvhome{pointer-events:auto;display:block;width:min(200px,42vw)}
+.rvmark{width:100%;height:auto;display:block;filter:drop-shadow(0 8px 24px rgba(0,0,0,.6))}
+.rvwho{text-align:right;font-size:11px}
+.rvwho b{display:block;font-weight:400;margin-top:3px}
+.rvhud{position:absolute;top:calc(84px + env(safe-area-inset-top));left:16px;right:16px;
+  display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none}
+.rvhud .clockv{text-align:right}
+.rvbar{position:absolute;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  justify-content:center;background:var(--shell);backdrop-filter:blur(16px);
+  border:1px solid var(--edge);border-radius:16px;padding:11px 14px;max-width:calc(100% - 32px)}
+.rvspeed{display:flex;gap:5px}
+.rvfinal{display:flex;align-items:center;gap:10px;font-size:9px;letter-spacing:.14em}
+.rvfinal b{font-family:var(--D);font-weight:800;font-size:15px;letter-spacing:-.02em}
+.verify{font-size:8px;letter-spacing:.14em;border:1px solid currentColor;border-radius:99px;
+  padding:3px 8px}
+.verify.ok{color:var(--bull)}
+.verify.bad{color:var(--bear)}
+.cta.sm{font-size:12px;padding:10px 18px;border-radius:11px;box-shadow:none;text-decoration:none}
+.replay #rotate{display:none}
+@media (orientation:portrait) and (max-width:900px){.replay #rotate{display:grid}}
+@media (max-width:700px){
+  .rvbar{gap:10px;padding:9px 11px}
+  .rvfinal .verify{display:none}
+  .stakerow{grid-template-columns:repeat(2,1fr)}
+  .rule2{grid-template-columns:1fr;gap:5px}
+}
+
+/* Yesterday's podium, above today's board. The reset is meant to leave a result behind
+   rather than a blank page. */
+.podium{width:100%;margin:10px 0 4px;border:1px solid rgba(255,206,92,.28);border-radius:14px;
+  background:rgba(255,206,92,.05);padding:11px 12px;display:grid;gap:7px}
+.podium>.k{text-align:left;color:var(--faint)}
+.prow{display:flex;align-items:center;gap:10px;font-size:11px;text-align:left}
+.prow .pk{width:24px;flex:0 0 auto;font-size:9px;letter-spacing:.1em;color:var(--faint)}
+.prow.p1 .pk{color:var(--gold)}
+.prow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prow .sc{font-family:var(--D);font-weight:800;font-size:13px;letter-spacing:-.02em}
+.prow .pz{font-size:9px;letter-spacing:.1em;color:var(--bull);flex:0 0 auto}

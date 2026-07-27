@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api, type LeaderboardDto } from '../../lib/api';
 import { useAccount } from '../../lib/account';
-import { money } from '../../lib/format';
+import { money, short } from '../../lib/format';
 
 type Window = 'daily' | 'weekly' | 'alltime';
 const WINDOWS: Array<{ id: Window; label: string }> = [
@@ -47,6 +47,11 @@ export function LeaderboardScreen({ on, onBack }: { on: boolean; onBack: () => v
     <section className={`scr${on ? ' on' : ''}`}>
       <div className="pan">
         <h2>Leaderboard</h2>
+        {data?.yesterday && data.yesterday.results.length > 0 && (
+          <div className="k" style={{ marginTop: 10 }}>
+            YESTERDAY&rsquo;S PODIUM
+          </div>
+        )}
         <div className="tabs">
           {WINDOWS.map((w) => (
             <button key={w.id} className={`tab${window === w.id ? ' on' : ''}`} onClick={() => setWindow(w.id)}>
@@ -54,6 +59,21 @@ export function LeaderboardScreen({ on, onBack }: { on: boolean; onBack: () => v
             </button>
           ))}
         </div>
+        {data?.yesterday && data.yesterday.results.length > 0 && (
+          <div className="podium">
+            <div className="k">
+              {data.yesterday.day} · {data.yesterday.entrants} ON THE BOARD
+            </div>
+            {data.yesterday.results.map((r) => (
+              <div key={r.rank} className={`prow p${r.rank}`}>
+                <span className="pk">#{r.rank}</span>
+                <span className="nm">{r.name}</span>
+                <span className="sc">{money(r.score)}</span>
+                <span className="pz">+{short(r.prize)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="lb">
           {loading && <div className="empty">LOADING…</div>}
           {!loading && error && <div className="empty">{error.toUpperCase()}</div>}
