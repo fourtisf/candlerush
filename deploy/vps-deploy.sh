@@ -19,7 +19,16 @@ DOMAIN=${DOMAIN:-candlerush.fun}
 EMAIL=${EMAIL:-}
 DB_NAME=${DB_NAME:-candlerush}
 DB_USER=${DB_USER:-candlerush}
-DB_PORT=${DB_PORT:-5432}
+# Debian numbers a second cluster 5433, and `su postgres -c psql` hides that because the
+# Debian psql wrapper resolves the default cluster's port for you. A TCP connection does
+# not, so assuming 5432 means testing against whatever else happens to be on 5432 —
+# on this box, a different Postgres that has never heard of our role.
+detect_pg_port() {
+  local p
+  p=$(pg_lsclusters -h 2>/dev/null | awk '$4 == "online" {print $3; exit}')
+  [ -n "$p" ] && printf '%s' "$p" || printf '5432'
+}
+DB_PORT=${DB_PORT:-$(detect_pg_port)}
 NODE_MAJOR=${NODE_MAJOR:-22}
 ASSUME_YES=${ASSUME_YES:-0}
 SKIP_TLS=${SKIP_TLS:-0}
