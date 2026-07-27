@@ -55,6 +55,17 @@ different network. See [QUESTIONS-FOR-ALFA #10](docs/QUESTIONS-FOR-ALFA.md#10-ro
 A wallet is optional. Guests play with their progress in localStorage; those sessions are
 unranked and the UI says so.
 
+## Deploying
+
+```sh
+RHC_CHAIN_ID=<id> DOMAIN=candlerush.fun EMAIL=you@example.com \
+  bash deploy/vps-deploy.sh -y
+```
+
+Removes any previous install, provisions the box, builds, migrates, and puts the game
+behind nginx with TLS. Routine redeploys are `bash deploy/update.sh`, which touches no
+configuration and no data. Runbook in [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Tests
 
 ```sh
