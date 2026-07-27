@@ -13,7 +13,7 @@ import { ZodError } from 'zod';
 import { prisma } from './db.js';
 import { corsOrigins, env } from './env.js';
 import { authPlugin } from './plugins/auth.js';
-import { redis } from './redis.js';
+import { NS, redis } from './redis.js';
 import { authRoutes } from './routes/auth.js';
 import { leaderboardRoutes } from './routes/leaderboard.js';
 import { meRoutes } from './routes/me.js';
@@ -48,6 +48,8 @@ export async function buildServer(pool: AnyReplayPool = createReplayPool()): Pro
   await app.register(rateLimit, {
     global: false,
     redis: redis(),
+    // Same reason as every other key here: this instance may not be ours alone.
+    nameSpace: `${NS}rl:fastify:`,
     keyGenerator: (req) => `${req.ip}`,
   });
   await app.register(authPlugin);

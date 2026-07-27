@@ -28,6 +28,7 @@ export function Hud({
 }) {
   const pnl = useRef<HTMLDivElement>(null);
   const clock = useRef<HTMLDivElement>(null);
+  const levelRef = useRef<HTMLDivElement>(null);
   const mult = useRef<HTMLDivElement>(null);
   const pos = useRef<HTMLDivElement>(null);
   const posTxt = useRef<HTMLSpanElement>(null);
@@ -48,6 +49,7 @@ export function Hud({
           clock.current.textContent = mmss(s.left);
           clock.current.classList.toggle('bell', s.belled);
         }
+        if (levelRef.current) levelRef.current.textContent = `LEVEL ${s.level}`;
         if (mult.current) {
           mult.current.textContent = `×${s.mult}`;
           mult.current.classList.toggle('on', s.mult > 1);
@@ -101,8 +103,8 @@ export function Hud({
           <canvas id="spark" ref={spark} width={232} height={48} />
         </div>
         <div>
-          <div className="k" style={{ textAlign: 'center' }}>
-            CLOSE IN
+          <div className="k lvl" ref={levelRef} style={{ textAlign: 'center' }}>
+            LEVEL 1
           </div>
           <div className="clockv" ref={clock}>
             1:30

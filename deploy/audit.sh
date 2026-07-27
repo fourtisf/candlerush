@@ -14,6 +14,7 @@
 
 DOMAIN=${DOMAIN:-candlerush.fun}
 DB_NAME=${DB_NAME:-candlerush}
+APP_DIR=${APP_DIR:-/opt/candlerush}
 
 hdr()  { printf '\n\033[1;36m── %s\033[0m\n' "$*"; }
 none() { printf '  \033[32mnone\033[0m\n'; }
@@ -96,7 +97,7 @@ fi
 hdr "8. Redis keys"
 if have redis-cli; then
   SIZE=$(redis-cli dbsize 2>/dev/null | awk '{print $1}')
-  CR=$(redis-cli --scan --pattern 'lb:*' 2>/dev/null | head -5; redis-cli --scan --pattern 'player:*' 2>/dev/null | head -5)
+  CR=$(redis-cli --scan --pattern 'cr:*' 2>/dev/null | head -8)
   if [ -n "$CR" ]; then mark; while IFS= read -r k; do [ -n "$k" ] && hit "$k"; done <<< "$CR"
   else printf '  no candle-rush keys (db has %s keys total)\n' "${SIZE:-0}"; fi
 else
@@ -167,12 +168,12 @@ else
     week) and a redeploy reuses it:
       certbot delete --cert-name $DOMAIN
 
-  Candle Rush's Redis keys are prefixed, so they can be cleared without touching a
-  co-hosted app (\$REDIS_DB defaults to the db the API was configured with):
-      redis-cli -n \${REDIS_DB:-0} --scan --pattern 'lb:*'     | xargs -r redis-cli -n \${REDIS_DB:-0} del
-      redis-cli -n \${REDIS_DB:-0} --scan --pattern 'player:*' | xargs -r redis-cli -n \${REDIS_DB:-0} del
-      redis-cli -n \${REDIS_DB:-0} --scan --pattern 'siwe:*'   | xargs -r redis-cli -n \${REDIS_DB:-0} del
-      redis-cli -n \${REDIS_DB:-0} --scan --pattern 'rl:*'     | xargs -r redis-cli -n \${REDIS_DB:-0} del
+  Candle Rush namespaces its Redis keys under 'cr:' and the deploy picks an empty
+  database, both recorded in apps/api/.env. Read them from there rather than guessing —
+  \$REDIS_DB unset would mean db 0, which on a shared box is somebody else's:
+      DB=\$(sed -n 's#.*REDIS_URL=redis://[^/]*/##p' $APP_DIR/apps/api/.env)
+      redis-cli -n "\${DB:?refusing to guess}" --scan --pattern 'cr:*'      # look first
+      redis-cli -n "\$DB" --scan --pattern 'cr:*' | xargs -r redis-cli -n "\$DB" del
 EOF
   printf '\n'
 fi

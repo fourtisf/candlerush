@@ -15,7 +15,7 @@ export const MAX_PRESSES_PER_SEC = 12;
 export const MAX_INPUTS_PER_SEC = 30;
 export const MAX_INPUTS = Math.ceil((MAX_FRAMES / 60) * MAX_INPUTS_PER_SEC);
 
-const PRESS_CODES = new Set<number>([IN.JUMP_DOWN, IN.FLIP, IN.REVIVE, IN.DECLINE]);
+const PRESS_CODES = new Set<number>([IN.JUMP_DOWN, IN.FLIP, IN.REVIVE, IN.DECLINE, IN.CONTINUE]);
 /** Presses that represent a reaction, and so ought to carry human timing jitter. */
 const REACTION_CODES = new Set<number>([IN.JUMP_DOWN, IN.FLIP]);
 
@@ -34,6 +34,7 @@ function fail(error: ReplayResult['error'], detail?: string): ReplayResult {
     cleanFlips: 0,
     flips: 0,
     pips: 0,
+    level: 0,
     frames: 0,
     endReason: null,
     inputJitterMs: 0,
@@ -155,6 +156,7 @@ export function runReplay(req: ReplayRequest): ReplayResult {
     cleanFlips: sim.cleanFlips,
     flips: sim.flips,
     pips: sim.pips,
+    level: sim.level,
     frames: sim.frame,
     endReason: sim.endReason,
     inputJitterMs: inputJitterMs(req.inputs),

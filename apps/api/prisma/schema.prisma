@@ -60,6 +60,7 @@ model Session {
   serverScore Int?
   clientScore Int? // logged for drift detection only, never trusted
   candles     Int?
+  levelReached Int?
   bestMult    Int?
   cleanFlips  Int?
   inputCount  Int?

@@ -25,7 +25,7 @@ export const nameSchema = z
 /** `[frame, code]` pairs, exactly as the engine records them. */
 export const inputEventSchema = z.tuple([
   z.number().int().min(0).max(MAX_FRAMES - 1),
-  z.number().int().min(0).max(4),
+  z.number().int().min(0).max(5),
 ]);
 
 export const inputTapeSchema = z.array(inputEventSchema).max(MAX_INPUTS);
@@ -115,6 +115,7 @@ export const sessionSubmitReply = z.object({
     candles: z.number().int(),
     bestMult: z.number().int(),
     cleanFlips: z.number().int(),
+    level: z.number().int(),
     endReason: z.string().nullable(),
   }),
   rank: z.object({

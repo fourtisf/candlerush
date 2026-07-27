@@ -4,14 +4,21 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
-import { bump } from '../redis.js';
+import { bump, k } from '../redis.js';
 import { errorSchema, sessionStartBody, sessionStartReply, sessionSubmitBody, sessionSubmitReply } from '../schemas.js';
 import { append, playerRef, refreshBalanceCache } from '../services/ledger.js';
 import * as lb from '../services/leaderboard.js';
 import { nextHandicap, owns } from '../services/players.js';
 import { ReplayTimeoutError, type AnyReplayPool } from '../services/replay-pool.js';
 
-const OPEN_SESSION_WINDOW_MS = 300_000;
+/**
+ * How long an issued session stays open before it is written off as abandoned.
+ *
+ * Must not be shorter than the longest legal run, or a player deep in the ladder gets
+ * their session expired out from under them mid-level and loses everything they banked.
+ * It tracks the submit ceiling for exactly that reason.
+ */
+const openSessionWindowMs = (): number => env().SESSION_MAX_ELAPSED_MS;
 
 export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
   return async (app) => {
@@ -38,11 +45,11 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
         const player = req.player!;
         const { mapId, charId } = req.body;
 
-        const perPlayer = await bump(`rl:start:p:${player.id}`, 3600);
+        const perPlayer = await bump(k('rl', 'start', 'p', player.id), 3600);
         if (perPlayer > e.SESSION_START_PER_HOUR_PLAYER) {
           return reply.code(429).send({ error: 'RATE_LIMITED', message: 'Too many sessions this hour.' });
         }
-        const perIp = await bump(`rl:start:ip:${req.ip}`, 3600);
+        const perIp = await bump(k('rl', 'start', 'ip', req.ip), 3600);
         if (perIp > e.SESSION_START_PER_HOUR_IP) {
           return reply.code(429).send({ error: 'RATE_LIMITED', message: 'Too many sessions from this address.' });
         }
@@ -52,7 +59,7 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
           return reply.code(403).send({ error: 'NOT_UNLOCKED', message: 'You do not own that market or trader.' });
         }
 
-        const cutoff = new Date(Date.now() - OPEN_SESSION_WINDOW_MS);
+        const cutoff = new Date(Date.now() - openSessionWindowMs());
         await prisma.session.updateMany({
           where: { playerId: player.id, status: 'OPEN', issuedAt: { lt: cutoff } },
           data: { status: 'EXPIRED' },
@@ -216,6 +223,7 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
               clientDigest: clientDigest ?? null,
               serverDigest: result.digest,
               candles: result.candles,
+              levelReached: result.level,
               bestMult: result.bestMult,
               cleanFlips: result.cleanFlips,
               inputCount: result.inputCount,
@@ -280,6 +288,7 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
             candles: result.candles,
             bestMult: result.bestMult,
             cleanFlips: result.cleanFlips,
+            level: result.level,
             endReason: result.endReason,
           },
           rank: { daily: daily?.rank ?? null, alltime: alltime?.rank ?? null },

@@ -1,5 +1,5 @@
 import { prisma } from '../db.js';
-import { redis } from '../redis.js';
+import { k, redis } from '../redis.js';
 
 /**
  * Leaderboards are Redis sorted sets holding player ids and scores, and nothing else.
@@ -26,9 +26,9 @@ export function isoWeekKey(at: Date): string {
 
 export function keysFor(at: Date): Record<Window, string> {
   return {
-    daily: `lb:daily:${dayKey(at)}`,
-    weekly: `lb:weekly:${isoWeekKey(at)}`,
-    alltime: 'lb:alltime',
+    daily: k('lb', 'daily', dayKey(at)),
+    weekly: k('lb', 'weekly', isoWeekKey(at)),
+    alltime: k('lb', 'alltime'),
   };
 }
 
@@ -112,8 +112,8 @@ export async function rebuildAllTime(): Promise<number> {
   });
   if (!players.length) return 0;
   const pipe = redis().pipeline();
-  pipe.del('lb:alltime');
-  for (const p of players) pipe.zadd('lb:alltime', 'GT', p.bestSession, p.id);
+  pipe.del(k('lb', 'alltime'));
+  for (const p of players) pipe.zadd(k('lb', 'alltime'), 'GT', p.bestSession, p.id);
   await pipe.exec();
   return players.length;
 }

@@ -17,7 +17,16 @@ import { Renderer } from './game/renderer';
 import { LiveSession } from './game/session';
 import { Hud } from './ui/Hud';
 import { LeaderboardScreen } from './ui/Leaderboard';
-import { CharScreen, HubScreen, MapScreen, OverScreen, ProfileScreen, ReviveScreen, type Result } from './ui/Screens';
+import {
+  CharScreen,
+  HubScreen,
+  LevelScreen,
+  MapScreen,
+  OverScreen,
+  ProfileScreen,
+  ReviveScreen,
+  type Result,
+} from './ui/Screens';
 
 type Screen = 'profile' | 'hub' | 'chars' | 'maps' | 'leaderboard' | 'playing' | 'over';
 
@@ -41,6 +50,12 @@ export function Game() {
   const [soundOn, setSoundOn] = useState(true);
   const [paused, setPaused] = useState(false);
   const [reviving, setReviving] = useState<{ pnl: number; left: number } | null>(null);
+  const [levelClear, setLevelClear] = useState<{
+    level: number;
+    pnl: number;
+    candles: number;
+    left: number;
+  } | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -121,6 +136,9 @@ export function Game() {
           case 'revive':
             showToast('BACK IN', '#22E6A0');
             break;
+          case 'levelStart':
+            if (e.level > 1) showToast(`LEVEL ${e.level}`, '#FFCE5C');
+            break;
           default:
             break;
         }
@@ -138,9 +156,10 @@ export function Game() {
   const submit = useCallback(
     async (session: LiveSession) => {
       const sim = session.sim;
-      const bell = sim.endReason === 'bell';
+      const cleared = sim.endReason === 'cleared';
       const base: Result = {
-        title: bell ? 'CLOSING BELL' : 'LIQUIDATED',
+        title: cleared ? 'ALL LEVELS CLEARED' : 'LIQUIDATED',
+        level: sim.level,
         score: sim.score,
         credited: sim.score,
         candles: sim.cleared,
@@ -176,6 +195,7 @@ export function Game() {
             candles: res.stats.candles,
             bestMult: res.stats.bestMult,
             cleanFlips: res.stats.cleanFlips,
+            level: res.stats.level,
             isBest: res.isBest,
             rank: res.rank.daily,
             ranked: true,
@@ -218,6 +238,16 @@ export function Game() {
             snapRef.current = snap;
             if (snap.mode === 'reviveOffer') setReviving({ pnl: snap.pnl, left: snap.reviveLeft });
             else if (snap.mode === 'running') setReviving((prev) => (prev ? null : prev));
+            if (snap.mode === 'levelBreak') {
+              setLevelClear({
+                level: snap.level,
+                pnl: snap.pnl,
+                candles: snap.cleared,
+                left: snap.breakLeft,
+              });
+            } else {
+              setLevelClear((prev) => (prev ? null : prev));
+            }
           },
           onEnd: (s) => void submit(s),
           onPauseExpiring: () => {
@@ -232,6 +262,7 @@ export function Game() {
       sessionRef.current = session;
       snapRef.current = session.sim.snapshot();
       setReviving(null);
+      setLevelClear(null);
       setPaused(false);
       setScreen('playing');
       session.start();
@@ -325,7 +356,7 @@ export function Game() {
   /* ── render ────────────────────────────────────────────────────────────── */
 
   const map = mapById(account.map);
-  const inRun = screen === 'playing' && !reviving;
+  const inRun = screen === 'playing' && !reviving && !levelClear;
 
   return (
     <div id="stage">
@@ -362,6 +393,14 @@ export function Game() {
       <CharScreen on={screen === 'chars'} onBack={() => setScreen('hub')} onToast={showToast} />
       <MapScreen on={screen === 'maps'} onBack={() => setScreen('hub')} onToast={showToast} />
       <LeaderboardScreen on={screen === 'leaderboard'} onBack={() => setScreen('hub')} />
+      <LevelScreen
+        on={!!levelClear}
+        level={levelClear?.level ?? 1}
+        pnl={levelClear?.pnl ?? 0}
+        candles={levelClear?.candles ?? 0}
+        secondsLeft={levelClear?.left ?? 0}
+        onContinue={() => sessionRef.current?.press(IN.CONTINUE)}
+      />
       <ReviveScreen
         on={!!reviving}
         pnl={reviving?.pnl ?? 0}

@@ -41,8 +41,13 @@ const schema = z.object({
   RHC_RPC_URL: z.string().url().optional(),
 
   /** Replay guard rails. */
-  SESSION_MIN_ELAPSED_MS: z.coerce.number().int().positive().default(80_000),
-  SESSION_MAX_ELAPSED_MS: z.coerce.number().int().positive().default(300_000),
+  /**
+   * A run is now a ladder of 25s levels rather than one 90s session, so the floor is one
+   * level and the ceiling is the whole ladder plus its between-level panels. The old
+   * 80s/300s pair would reject a one-level run outright and every deep run with it.
+   */
+  SESSION_MIN_ELAPSED_MS: z.coerce.number().int().positive().default(18_000),
+  SESSION_MAX_ELAPSED_MS: z.coerce.number().int().positive().default(900_000),
   REPLAY_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
   REPLAY_WORKERS: z.coerce.number().int().positive().max(16).default(2),
 

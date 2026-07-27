@@ -161,3 +161,6 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
 .err{font-size:9px;letter-spacing:.14em;color:var(--bear);margin-top:12px;min-height:12px;line-height:1.8}
 .unranked{font-size:8.5px;letter-spacing:.18em;color:var(--faint);margin-top:10px;line-height:1.9}
 .busy{opacity:.55;pointer-events:none}
+
+/* The level counter sits where "CLOSE IN" used to, above the level clock. */
+.k.lvl{color:var(--gold);letter-spacing:.26em}

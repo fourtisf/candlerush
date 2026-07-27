@@ -269,10 +269,62 @@ export function ReviveScreen({
   );
 }
 
+/* ── level clear ───────────────────────────────────────────────────────────── */
+
+export function LevelScreen({
+  on,
+  level,
+  pnl,
+  candles,
+  secondsLeft,
+  onContinue,
+}: {
+  on: boolean;
+  level: number;
+  pnl: number;
+  candles: number;
+  secondsLeft: number;
+  onContinue: () => void;
+}) {
+  return (
+    <section className={`scr${on ? ' on' : ''}`}>
+      <div className="pan">
+        <div className="eyebrow">LEVEL {level} CLEARED</div>
+        <div className="k">P&amp;L SO FAR</div>
+        <div className="big">{money(pnl)}</div>
+        <div className="stats">
+          <div className="st">
+            <div className="v">{candles}</div>
+            <div className="l">CANDLES</div>
+          </div>
+          <div className="st">
+            <div className="v">{level + 1}</div>
+            <div className="l">NEXT LEVEL</div>
+          </div>
+          <div className="st">
+            <div className="v">+{Math.round(level * 25)}%</div>
+            <div className="l">PAYOUT</div>
+          </div>
+        </div>
+        <button className="cta g wide" onClick={onContinue}>
+          Continue
+        </button>
+        <div className="bar">
+          <i style={{ width: `${Math.max(0, (secondsLeft / 8) * 100)}%` }} />
+        </div>
+        <div className="keys">
+          FASTER TAPE, MORE HOLES, SHORTER TRENDS — STARTS IN {Math.max(0, Math.ceil(secondsLeft))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ── results ───────────────────────────────────────────────────────────────── */
 
 export interface Result {
   title: string;
+  level: number;
   score: number;
   credited: number;
   candles: number;
@@ -320,16 +372,16 @@ export function OverScreen({
         </div>
         <div className="stats">
           <div className="st">
+            <div className="v">{result.level}</div>
+            <div className="l">LEVEL</div>
+          </div>
+          <div className="st">
             <div className="v">{result.candles}</div>
             <div className="l">CANDLES</div>
           </div>
           <div className="st">
             <div className="v">×{result.bestMult}</div>
             <div className="l">BEST STREAK</div>
-          </div>
-          <div className="st">
-            <div className="v">{result.cleanFlips}</div>
-            <div className="l">CLEAN FLIPS</div>
           </div>
         </div>
         <button className="cta wide" onClick={onAgain}>

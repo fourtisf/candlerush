@@ -3,8 +3,11 @@ import {
   CULL_BEHIND,
   JH,
   LOOKAHEAD,
+  MAX_GAP_CHANCE,
   REGIMES,
   VIEW,
+  levelGapMul,
+  levelRunMul,
   type CandleKind,
   type CharDef,
   type MapDef,
@@ -43,6 +46,10 @@ export class World {
   sincePower = 0;
   regime: RegimeId = 'drift';
   regimeLeft = 0;
+  /** Current level. Scales gap frequency and trend length; see config.ts. */
+  level = 1;
+  /** Candles of guaranteed-solid doji still owed after a level change. */
+  checkpoint = 0;
 
   private nextIdx = 0;
   private nextPipIdx = 0;
@@ -180,7 +187,12 @@ export class World {
 
       let kind: CandleKind;
       let bridgeStart = false;
-      if (M.longOnly) {
+      if (this.checkpoint > 0) {
+        // Safe ground for the first few candles of a new level, so the step up in speed
+        // is something the player sees coming rather than something they land in.
+        this.checkpoint--;
+        kind = 'doji';
+      } else if (M.longOnly) {
         // Tier 1 — nothing is ever a hole.
         kind = rng.next() < 0.22 ? 'doji' : 'green';
       } else if (this.pendDoji > 0) {
@@ -189,7 +201,10 @@ export class World {
       } else if (this.runLeft <= 0) {
         this.runColor = (R.force as Exclude<CandleKind, 'doji'> | undefined) ?? (this.runColor === 'green' ? 'red' : 'green');
         if (!R.force && rng.next() < 0.2) this.runColor = this.runColor === 'green' ? 'red' : 'green';
-        this.runLeft = rng.int(R.run[0], R.run[1]);
+        // Shorter trends at higher levels: more forced flips per minute. The draw itself
+        // is unchanged so the RNG stream stays aligned with the rest of generation.
+        const runScale = levelRunMul(this.level);
+        this.runLeft = Math.max(4, Math.round(rng.int(R.run[0], R.run[1]) * runScale));
         this.pendDoji = rng.int(2, 3); // a wide bridge to flip on: 3–4 doji including this one
         kind = 'doji';
         bridgeStart = true;
@@ -202,7 +217,7 @@ export class World {
       let nx = prev.x + C.pitch;
       let gp = 0;
       if (this.noGap > 0) this.noGap--;
-      else if (kind !== 'doji' && rng.next() < R.gap * ramp) {
+      else if (kind !== 'doji' && rng.next() < Math.min(MAX_GAP_CHANCE, R.gap * ramp * levelGapMul(this.level))) {
         gp = 1;
         nx += C.pitch;
       }
@@ -230,6 +245,29 @@ export class World {
     while (this.candles.length && this.candles[0]!.x + this.candles[0]!.w < back) this.candles.shift();
     this.pips = this.pips.filter((p) => p.x > back && !p.got);
     this.powers = this.powers.filter((p) => p.x > back && !p.got);
+  }
+
+  /**
+   * Begin a new level.
+   *
+   * Everything past the player is discarded and regenerated, because the horizon is about
+   * 38 candles deep — without this the first five seconds of a new level would still be
+   * built from the previous level's difficulty, and the step up would arrive late and
+   * unexplained. A short doji checkpoint bridges the two.
+   */
+  startLevel(level: number, playerX: number, cam: number): void {
+    this.level = level;
+    const keepTo = playerX + C.pitch * 3;
+    this.candles = this.candles.filter((c) => c.x <= keepTo);
+    this.pips = this.pips.filter((p) => p.x <= keepTo);
+    this.powers = this.powers.filter((p) => p.x <= keepTo);
+    this.last = this.candles[this.candles.length - 1] ?? null;
+    this.checkpoint = 5;
+    // Let the new level open on a fresh trend rather than half of the old one.
+    this.runLeft = 0;
+    this.pendDoji = 0;
+    this.noGap = 0;
+    this.ensure(cam);
   }
 
   /**

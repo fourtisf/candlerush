@@ -64,9 +64,11 @@ describe('the ledger', () => {
     await append(prisma, { playerId: player.id, kind: 'SESSION_PAYOUT', amount: 900, refType: 'session', refId: 'x' });
     expect(await balanceOf(player.id)).toBe(900);
 
-    // Poison the cache the way a stale or hostile write would.
-    const { redis } = await import('../src/redis.js');
-    await redis().set(`player:${player.id}:balance`, '999999999');
+    // Poison the cache the way a stale or hostile write would. Built with the same helper
+    // the code uses, so this also pins the namespace: a bare `player:<id>:balance` would
+    // miss, and a miss here would make the test pass for the wrong reason.
+    const { redis, k } = await import('../src/redis.js');
+    await redis().set(k('player', player.id, 'balance'), '999999999');
     expect(await balanceOf(player.id)).toBe(999999999); // display path trusts the cache
 
     const res = await app.inject({

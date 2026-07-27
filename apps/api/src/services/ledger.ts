@@ -1,6 +1,6 @@
 import type { LedgerKind, Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
-import { redis } from '../redis.js';
+import { k, redis } from '../redis.js';
 
 /**
  * The ledger.
@@ -13,7 +13,7 @@ import { redis } from '../redis.js';
  * spending always re-derives from the rows inside a serializable transaction.
  */
 
-const cacheKey = (playerId: string) => `player:${playerId}:balance`;
+const cacheKey = (playerId: string) => k('player', playerId, 'balance');
 const CACHE_TTL = 3600;
 
 /** Authoritative balance, straight from the rows. */

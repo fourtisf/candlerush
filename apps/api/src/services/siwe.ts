@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { createPublicClient, defineChain, http, isAddress, recoverMessageAddress, type Hex } from 'viem';
 import { parseSiweMessage, validateSiweMessage } from 'viem/siwe';
 import { env } from '../env.js';
-import { redis } from '../redis.js';
+import { k, redis } from '../redis.js';
 
 /**
  * Sign-In with Ethereum (EIP-4361).
@@ -14,7 +14,7 @@ import { redis } from '../redis.js';
  */
 
 const NONCE_TTL = 300; // 5 minutes
-const nonceKey = (nonce: string) => `siwe:nonce:${nonce}`;
+const nonceKey = (nonce: string) => k('siwe', 'nonce', nonce);
 
 /** Atomic consume: read the bound address and delete in one round trip. */
 const CONSUME = `local v = redis.call('GET', KEYS[1]) if v then redis.call('DEL', KEYS[1]) end return v`;

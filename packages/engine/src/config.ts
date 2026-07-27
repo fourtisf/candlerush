@@ -11,12 +11,15 @@
  */
 
 /**
+ * v2 replaced the single 90-second session with levels. Any tape recorded against v1 is
+ * meaningless here and is rejected on submit.
+ *
  * Bump on ANY gameplay change: physics, generation, scoring, ordering of RNG draws.
  * Sessions record the version they were issued under and replays are rejected on
  * mismatch. A v1 tape replayed on a v2 engine produces garbage, and garbage that
  * silently becomes money is the worst failure this system has.
  */
-export const ENGINE_VERSION = 1;
+export const ENGINE_VERSION = 2;
 
 /**
  * Fixed virtual viewport.
@@ -60,17 +63,65 @@ export const JH = C.jumpV ** 2 / (2 * C.grav);
 /** Time from launch back to launch height, 0.687s. */
 export const AIRTIME = (2 * C.jumpV) / C.grav;
 
-/** 90s at 60Hz. */
-export const SESSION_FRAMES = Math.round(C.session / STEP);
+/**
+ * Levels.
+ *
+ * The prototype was a single 90-second session that ramped gently. A run is now a ladder
+ * of short levels that each end in a hard stop, and every level is measurably faster,
+ * gappier and more flip-dense than the one before. Dying ends the run; surviving a level
+ * banks it and raises the payout.
+ *
+ * `seconds` is the knob to turn if levels feel long or short — everything below is
+ * derived from it, including the frame budget and the API's wall-clock window.
+ */
+export const LEVEL = {
+  /** Length of one level. */
+  seconds: 25,
+  /** The level-clear panel. Counts down and continues on its own so a tape cannot stall. */
+  breakSeconds: 8,
+  /** Closing bell inside each level: the last few seconds pay double. */
+  bell: 5,
+  /** Ceiling, so a tape has a bounded length. Reaching it clears the run. */
+  maxLevels: 15,
+} as const;
+
+export const LEVEL_FRAMES = Math.round(LEVEL.seconds / STEP);
+export const BREAK_FRAMES = Math.round(LEVEL.breakSeconds / STEP);
+
 /** The revive offer is a 6s countdown in the prototype; here it is 360 sim frames. */
 export const REVIVE_SECONDS = 6;
 export const REVIVE_FRAMES = Math.round(REVIVE_SECONDS / STEP);
+
 /**
- * Upper bound on a legal tape. The handoff says 5,400; that is the session length and
- * ignores the revive offer, during which the session clock is frozen but frames still
- * advance (the camera drifts, exactly as in the prototype). 5,760 is the real ceiling.
+ * Upper bound on a legal tape: every level plus every break, plus one revive offer.
+ * The handoff's 5,400 was the old single session and no longer applies.
  */
-export const MAX_FRAMES = SESSION_FRAMES + REVIVE_FRAMES;
+export const MAX_FRAMES = LEVEL.maxLevels * (LEVEL_FRAMES + BREAK_FRAMES) + REVIVE_FRAMES;
+
+/* ── difficulty per level ───────────────────────────────────────────────────
+ *
+ * Speed is the primary knob because it tightens reaction time without making any single
+ * jump impossible — a faster player clears a gap more easily, not less, so the generator's
+ * "every gap is crossable" invariant survives the ramp untouched.
+ *
+ * Gap frequency and trend length are secondary: more holes to cross, and shorter trends
+ * so the tape demands more flips per minute. Doji bridges are never shortened; three
+ * candles is the floor at which a flip is readable, and taking that away makes the game
+ * unfair rather than hard.
+ */
+
+/** Starting speed multiplier for a level. */
+export const levelSpeedStart = (level: number): number => 1 + 0.1 * (level - 1);
+/** Ceiling speed multiplier for a level. */
+export const levelSpeedMax = (level: number): number => 1 + 0.08 * (level - 1);
+/** Gap frequency multiplier. The resulting probability is clamped in the generator. */
+export const levelGapMul = (level: number): number => 1 + 0.15 * (level - 1);
+/** Trend-length multiplier: shorter runs mean more forced flips. Floored so trends stay readable. */
+export const levelRunMul = (level: number): number => Math.max(0.5, 1 - 0.06 * (level - 1));
+/** Payout multiplier. Surviving deeper is where the money is. */
+export const levelPay = (level: number): number => 1 + 0.25 * (level - 1);
+/** Hard ceiling on gap probability, whatever the level multiplier works out to. */
+export const MAX_GAP_CHANCE = 0.35;
 
 /**
  * Generation horizon and cull distance. Constants, not viewport-derived: a wider screen

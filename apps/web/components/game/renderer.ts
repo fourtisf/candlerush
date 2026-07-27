@@ -351,7 +351,7 @@ export class Renderer {
           this.trail = [];
           break;
         case 'end':
-          if (e.reason === 'bell') this.shake = 16;
+          if (e.reason === 'cleared') this.shake = 16;
           break;
         default:
           break;

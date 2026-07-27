@@ -1,6 +1,9 @@
 import {
   C,
   ENGINE_VERSION,
+  BREAK_FRAMES,
+  LEVEL,
+  LEVEL_FRAMES,
   MAX_FRAMES,
   REVIVE_FRAMES,
   REVIVE_MIN_CLEARED,
@@ -8,6 +11,9 @@ import {
   STEP,
   VIEW,
   charById,
+  levelPay,
+  levelSpeedMax,
+  levelSpeedStart,
   mapById,
   type CharDef,
   type MapDef,
@@ -52,7 +58,19 @@ export class Sim {
   t = 0;
   cam = 0;
   spd = 0;
-  left: number = C.session;
+  /**
+   * Every countdown in the sim is an integer frame counter, with the seconds derived for
+   * display. Subtracting 1/60 from 25 fifteen hundred times does not reach zero — it
+   * leaves a few femtoseconds — so a float clock ends the level one frame late and, worse,
+   * makes the exact frame depend on accumulated rounding. Frames are exact by construction.
+   */
+  left: number = LEVEL.seconds;
+  private levelFrames = LEVEL_FRAMES;
+  /** 1-based level. Difficulty, payout and the speed band all key off this. */
+  level = 1;
+  /** Countdown on the level-clear panel. */
+  breakLeft = 0;
+  private breakFrames = 0;
   pnl = 0;
   pips = 0;
   streak = 0;
@@ -72,6 +90,7 @@ export class Sim {
   belled = false;
   usedRevive = false;
   reviveLeft = 0;
+  private reviveFrames = 0;
 
   readonly p: PlayerState = createPlayer();
   readonly buffs: Buffs = { lev: 0, bull: 0, shield: false };
@@ -134,6 +153,9 @@ export class Sim {
       case IN.DECLINE:
         if (this.mode === 'reviveOffer') this.end('declined');
         break;
+      case IN.CONTINUE:
+        if (this.mode === 'levelBreak') this.startLevel(this.level + 1);
+        break;
       default:
         break;
     }
@@ -188,6 +210,41 @@ export class Sim {
     this.emit({ t: 'revive' });
   }
 
+  /** Level cleared: freeze everything and put the panel up. */
+  private clearLevel(): void {
+    this.emit({ t: 'levelClear', level: this.level, pnl: this.pnl, candles: this.cleared });
+    if (this.level >= LEVEL.maxLevels) {
+      this.end('cleared');
+      return;
+    }
+    this.mode = 'levelBreak';
+    this.breakFrames = BREAK_FRAMES;
+    this.breakLeft = LEVEL.breakSeconds;
+  }
+
+  /**
+   * Start a level.
+   *
+   * Speed resets to this level's band rather than carrying over, so every level opens
+   * with a beat of breathing room and then ramps — the alternative is a run that is
+   * already at terminal velocity by level four and cannot get harder in any way the
+   * player can read.
+   */
+  private startLevel(level: number): void {
+    this.level = level;
+    this.levelFrames = LEVEL_FRAMES;
+    this.left = LEVEL.seconds;
+    this.breakFrames = 0;
+    this.breakLeft = 0;
+    this.belled = false;
+    this.spd = C.spd0 * this.map.spd * levelSpeedStart(level);
+    this.slow = 1;
+    this.inv = 1.2;
+    this.world.startLevel(level, this.p.x, this.cam);
+    this.mode = 'running';
+    this.emit({ t: 'levelStart', level });
+  }
+
   private end(reason: EndReason): void {
     if (this.mode === 'ended') return;
     this.mode = 'ended';
@@ -200,6 +257,7 @@ export class Sim {
     this.emit({ t: 'death', x: this.p.x + C.pw / 2, y: this.p.y + C.ph / 2 });
     if (this.canRevive) {
       this.mode = 'reviveOffer';
+      this.reviveFrames = REVIVE_FRAMES;
       this.reviveLeft = REVIVE_SECONDS;
       this.emit({ t: 'reviveOffer' });
       return;
@@ -254,19 +312,30 @@ export class Sim {
     if (this.mode === 'reviveOffer') {
       this.cam += 62 * dt;
       this.world.ensure(this.cam);
-      this.reviveLeft -= dt;
-      if (this.reviveLeft <= 0) this.end('declined');
+      this.reviveFrames--;
+      this.reviveLeft = this.reviveFrames * STEP;
+      if (this.reviveFrames <= 0) this.end('declined');
       return;
     }
 
-    this.left -= dt;
-    if (!this.belled && this.left <= C.bell) {
+    // The level-clear panel freezes the world completely: the player keeps the position
+    // they earned, and the panel continues on its own so a tape can never stall here.
+    if (this.mode === 'levelBreak') {
+      this.breakFrames--;
+      this.breakLeft = this.breakFrames * STEP;
+      if (this.breakFrames <= 0) this.startLevel(this.level + 1);
+      return;
+    }
+
+    this.levelFrames--;
+    this.left = this.levelFrames * STEP;
+    if (!this.belled && this.levelFrames <= LEVEL.bell * 60) {
       this.belled = true;
       this.emit({ t: 'bell' });
     }
-    if (this.left <= 0) {
+    if (this.levelFrames <= 0) {
       this.left = 0;
-      this.end('bell');
+      this.clearLevel();
       return;
     }
 
@@ -281,7 +350,7 @@ export class Sim {
 
     const fox = this.char.id === 'fox' ? 0.7 : 1;
     this.spd = Math.min(
-      C.spdMax * this.map.spd,
+      C.spdMax * this.map.spd * levelSpeedMax(this.level),
       this.spd + C.ramp * dt * (1 + this.diff) * (1 - this.cfg.handicap * 0.4) * fox,
     );
     const speed = this.spd * this.slow * (this.belled ? 1.12 : 1) * (buffs.bull > 0 ? 1.3 : 1);
@@ -415,8 +484,11 @@ export class Sim {
     }
 
     this.pnl +=
-      dt * speed * 0.075 * this.mult * (buffs.lev > 0 ? 2 : 1) * this.bellMul * this.map.pay;
-    this.dayP = clamp(1 - this.left / C.session, 0, 1);
+      dt * speed * 0.075 * this.mult * (buffs.lev > 0 ? 2 : 1) * this.bellMul * this.map.pay *
+      levelPay(this.level);
+    // The sky now advances across the whole run rather than one session, so a deep run
+    // visibly moves from night to day.
+    this.dayP = clamp(this.t / 150, 0, 1);
     this.cam = lerp(this.cam, p.x - VIEW.w * C.px, 1 - Math.pow(0.00002, dt));
   }
 
@@ -493,6 +565,8 @@ export class Sim {
       cam: this.cam,
       spd: this.spd,
       left: this.left,
+      level: this.level,
+      breakLeft: this.breakLeft,
       pnl: this.pnl,
       pips: this.pips,
       mult: this.mult,

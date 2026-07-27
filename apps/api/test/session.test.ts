@@ -2,6 +2,7 @@ import { ENGINE_VERSION, IN, MAX_FRAMES, type InputEvent } from '@candle-rush/en
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../src/db.js';
+import { env } from '../src/env.js';
 import { nextHandicap } from '../src/services/players.js';
 import { backdate, makePlayer, reset, tapeFor, teardown, testServer } from './setup.js';
 
@@ -58,7 +59,9 @@ describe('POST /session/start', () => {
   it('expires a stale open session instead of blocking forever', async () => {
     const { auth } = await makePlayer(app);
     const first = await startSession(auth);
-    await backdate(first.body.sessionId, 400_000);
+    // Derived, not hardcoded: the window tracks the submit ceiling, which moved when the
+    // 90-second session became a ladder of levels.
+    await backdate(first.body.sessionId, env().SESSION_MAX_ELAPSED_MS + 60_000);
     expect((await startSession(auth)).res.statusCode).toBe(200);
     const stale = await prisma.session.findUniqueOrThrow({ where: { id: first.body.sessionId } });
     expect(stale.status).toBe('EXPIRED');
@@ -83,7 +86,7 @@ describe('POST /session/submit', () => {
   async function playable(mapId = 'dawn', charId = 'bull') {
     const made = await makePlayer(app, { unlockedMaps: ['dawn', 'night'], unlockedChars: ['bull'] });
     const { body } = await startSession(made.auth, mapId, charId);
-    await backdate(body.sessionId, 90_000);
+    await backdate(body.sessionId, env().SESSION_MIN_ELAPSED_MS + 5_000);
     const { inputs, score } = tapeFor(body.config);
     return { ...made, sessionId: body.sessionId, config: body.config, inputs, score };
   }
@@ -169,7 +172,7 @@ describe('POST /session/submit', () => {
   it('refuses a session that sat around long enough to be computed', async () => {
     const made = await makePlayer(app);
     const { body } = await startSession(made.auth);
-    await backdate(body.sessionId, 600_000);
+    await backdate(body.sessionId, env().SESSION_MAX_ELAPSED_MS + 60_000);
     const { inputs } = tapeFor(body.config);
     const res = await app.inject({
       method: 'POST',
@@ -184,7 +187,7 @@ describe('POST /session/submit', () => {
   it('refuses a tape recorded against a different engine version', async () => {
     const made = await makePlayer(app);
     const { body } = await startSession(made.auth);
-    await backdate(body.sessionId, 90_000);
+    await backdate(body.sessionId, env().SESSION_MIN_ELAPSED_MS + 5_000);
     await prisma.session.update({
       where: { id: body.sessionId },
       data: { engineVersion: ENGINE_VERSION + 1 },
@@ -235,7 +238,7 @@ describe('POST /session/submit', () => {
   it('flags frame-perfect input for review without banning', async () => {
     const made = await makePlayer(app);
     const { body } = await startSession(made.auth);
-    await backdate(body.sessionId, 90_000);
+    await backdate(body.sessionId, env().SESSION_MIN_ELAPSED_MS + 5_000);
     const robotic: InputEvent[] = [];
     for (let f = 60; f < 1200; f += 60) robotic.push([f, IN.JUMP_DOWN]);
     const res = await app.inject({
@@ -265,7 +268,7 @@ describe('POST /session/submit', () => {
 
     const started = await startSession(made.auth);
     expect(started.body.config.handicap).toBe(0.5); // issued with the session, not held by the client
-    await backdate(started.body.sessionId, 90_000);
+    await backdate(started.body.sessionId, env().SESSION_MIN_ELAPSED_MS + 5_000);
     const { inputs } = tapeFor(started.body.config);
     const res = await app.inject({
       method: 'POST',

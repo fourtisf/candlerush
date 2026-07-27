@@ -67,8 +67,9 @@ export interface Buffs {
 
 /* ── session ───────────────────────────────────────────────────────────────── */
 
-export type SimMode = 'attract' | 'running' | 'reviveOffer' | 'ended';
-export type EndReason = 'bell' | 'liquidated' | 'declined';
+export type SimMode = 'attract' | 'running' | 'levelBreak' | 'reviveOffer' | 'ended';
+/** `cleared` means every level was survived — the top of the ladder. */
+export type EndReason = 'cleared' | 'liquidated' | 'declined';
 
 /**
  * Everything needed to reproduce a session bit for bit.
@@ -95,6 +96,8 @@ export const IN = {
   FLIP: 2,
   REVIVE: 3,
   DECLINE: 4,
+  /** Dismiss the level-clear panel and start the next level. */
+  CONTINUE: 5,
 } as const;
 
 export type InputCode = (typeof IN)[keyof typeof IN];
@@ -117,6 +120,8 @@ export type SimEvent =
   | { t: 'stumble'; x: number; y: number; mult: number }
   | { t: 'shield'; x: number; y: number }
   | { t: 'bell' }
+  | { t: 'levelClear'; level: number; pnl: number; candles: number }
+  | { t: 'levelStart'; level: number }
   | { t: 'regime'; name: string; id: RegimeId }
   | { t: 'death'; x: number; y: number }
   | { t: 'reviveOffer' }
@@ -135,8 +140,12 @@ export interface SimSnapshot {
   t: number;
   cam: number;
   spd: number;
-  /** Seconds left on the session clock. */
+  /** Seconds left in the current level. */
   left: number;
+  /** 1-based level the player is on. */
+  level: number;
+  /** Seconds left on the level-clear panel before it continues by itself. */
+  breakLeft: number;
   pnl: number;
   pips: number;
   mult: number;
@@ -185,6 +194,8 @@ export interface ReplayResult {
   cleanFlips: number;
   flips: number;
   pips: number;
+  /** Highest level reached. */
+  level: number;
   frames: number;
   endReason: EndReason | null;
   /** Stddev of inter-press gaps in ms. Low = suspiciously frame-perfect. Flag, never ban. */

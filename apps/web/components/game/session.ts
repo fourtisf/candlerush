@@ -254,7 +254,7 @@ export class LiveSession {
           Snd.bell();
           break;
         case 'end':
-          if (e.reason === 'bell') Snd.bell();
+          if (e.reason === 'cleared') Snd.bell();
           break;
         default:
           break;

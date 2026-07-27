@@ -3,9 +3,11 @@ import {
   AIRTIME,
   C,
   JH,
+  LEVEL,
   MAPS,
   World,
   charById,
+  levelSpeedStart,
   mapById,
   type Candle,
   type MapId,
@@ -20,8 +22,9 @@ import {
  */
 
 /** Walk the generator and hand back every candle it produced, before culling eats them. */
-function generate(mapId: MapId, seed: number, count: number): Candle[] {
+function generate(mapId: MapId, seed: number, count: number, level = 1): Candle[] {
   const world = new World(mapById(mapId), charById('bull'), seed);
+  world.level = level;
   const out: Candle[] = [];
   let taken = 0;
   let cam = 0;
@@ -56,12 +59,22 @@ function reachableHeight(d: number, speed: number): number {
 }
 
 const SEEDS = [1, 7, 13, 101, 977, 31337];
-const PER_SEED = 4500; // 4 maps x 6 seeds x 4500 = 108,000 candles
+const PER_SEED = 4500;
+// The difficulty ladder has to hold its invariants at the top as well as the bottom, so
+// the sweep runs at level 1, mid-ladder and the final level.
+const TEST_LEVELS = [1, Math.ceil(LEVEL.maxLevels / 2), LEVEL.maxLevels];
+
+const levelOf = (key: string): number => Number(key.split(':')[2]);
+const mapOf = (key: string): MapId => key.split(':')[0] as MapId;
 
 describe('generator invariants', () => {
   const all: Record<string, Candle[]> = {};
   for (const m of MAPS) {
-    for (const seed of SEEDS) all[`${m.id}:${seed}`] = generate(m.id, seed, PER_SEED);
+    for (const seed of SEEDS) {
+      for (const level of TEST_LEVELS) {
+        all[`${m.id}:${seed}:${level}`] = generate(m.id, seed, PER_SEED, level);
+      }
+    }
   }
   const total = Object.values(all).reduce((n, cs) => n + cs.length, 0);
 
@@ -96,8 +109,7 @@ describe('generator invariants', () => {
 
   it('no gap is wider than the player can cross at the speed it spawns at', () => {
     for (const [key, cs] of Object.entries(all)) {
-      const mapId = key.split(':')[0] as MapId;
-      const minSpeed = C.spd0 * mapById(mapId).spd;
+      const minSpeed = C.spd0 * mapById(mapOf(key)).spd * levelSpeedStart(levelOf(key));
       const budget = minSpeed * AIRTIME * 0.9;
       for (let i = 1; i < cs.length; i++) {
         if (!cs[i]!.gapped) continue;
@@ -111,8 +123,7 @@ describe('generator invariants', () => {
     // Not in the handoff, but a gap that is crossable horizontally and unreachable
     // vertically is still a death sentence. Gaps do require the double jump.
     for (const [key, cs] of Object.entries(all)) {
-      const mapId = key.split(':')[0] as MapId;
-      const minSpeed = C.spd0 * mapById(mapId).spd;
+      const minSpeed = C.spd0 * mapById(mapOf(key)).spd * levelSpeedStart(levelOf(key));
       for (let i = 1; i < cs.length; i++) {
         if (!cs[i]!.gapped) continue;
         const rise = cs[i - 1]!.y - cs[i]!.y;
@@ -127,7 +138,7 @@ describe('generator invariants', () => {
 
   it('every colour transition is bridged by at least three doji', () => {
     for (const [key, cs] of Object.entries(all)) {
-      if (mapById(key.split(':')[0] as MapId).longOnly) continue;
+      if (mapById(mapOf(key)).longOnly) continue;
       let lastColour: string | null = null;
       let lastColourAt = -1;
       for (let i = 0; i < cs.length; i++) {
@@ -151,7 +162,7 @@ describe('generator invariants', () => {
     // is only 2 candles, and a same-colour trend restart makes that number meaningless
     // altogether. See docs/QUESTIONS-FOR-ALFA.md #3.
     for (const [key, cs] of Object.entries(all)) {
-      if (mapById(key.split(':')[0] as MapId).longOnly) continue;
+      if (mapById(mapOf(key)).longOnly) continue;
       let lastBridge = -Infinity;
       let seenBridge = false;
       for (let i = 0; i < cs.length; i++) {
@@ -172,7 +183,7 @@ describe('generator invariants', () => {
     // The weaker but still load-bearing half: whatever the bridge spacing, the first two
     // candles after a flip are always solid ground.
     for (const [key, cs] of Object.entries(all)) {
-      if (mapById(key.split(':')[0] as MapId).longOnly) continue;
+      if (mapById(mapOf(key)).longOnly) continue;
       for (let i = 1; i < cs.length; i++) {
         if (!cs[i]!.gapped) continue;
         // Walk back to the bridge this candle belongs to; nothing within 5 may be gapped.
@@ -183,16 +194,41 @@ describe('generator invariants', () => {
     }
   });
 
+  it('gets measurably harder as the levels climb', () => {
+    // The point of the ladder. If these stop being true the levels are cosmetic.
+    const gapRate = (level: number) =>
+      SEEDS.map((s) => all[`night:${s}:${level}`]!).reduce(
+        (acc, cs) => acc + cs.filter((c) => c.gapped).length / cs.length,
+        0,
+      ) / SEEDS.length;
+    const flipRate = (level: number) =>
+      SEEDS.map((s) => all[`night:${s}:${level}`]!).reduce((acc, cs) => {
+        let runs = 0;
+        let last: string | null = null;
+        for (const c of cs) {
+          if (c.kind === 'doji') continue;
+          if (c.kind !== last) runs++;
+          last = c.kind;
+        }
+        return acc + runs / cs.length;
+      }, 0) / SEEDS.length;
+
+    const low = TEST_LEVELS[0]!;
+    const high = TEST_LEVELS[TEST_LEVELS.length - 1]!;
+    expect(gapRate(high)).toBeGreaterThan(gapRate(low));
+    expect(flipRate(high)).toBeGreaterThan(flipRate(low));
+  });
+
   it('tier 1 never generates a red candle', () => {
     for (const [key, cs] of Object.entries(all)) {
-      if (!mapById(key.split(':')[0] as MapId).longOnly) continue;
+      if (!mapById(mapOf(key)).longOnly) continue;
       expect(cs.some((c) => c.kind === 'red'), key).toBe(false);
     }
   });
 
   it('produces trends of roughly 25 candles and around 19 flips a session', () => {
     // The design target from the handoff: one decision every ~4.7 seconds.
-    const cs = all['night:101']!;
+    const cs = all['night:101:1']!;
     let runs = 0;
     let lastColour: string | null = null;
     for (const c of cs) {

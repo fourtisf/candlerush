@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { ENGINE_VERSION, MAX_FRAMES, Sim, digest, runReplay, type SessionConfig } from '../src/index.js';
+import {
+  ENGINE_VERSION,
+  IN,
+  LEVEL,
+  MAX_FRAMES,
+  Sim,
+  digest,
+  runReplay,
+  type SessionConfig,
+} from '../src/index.js';
 import { playBot } from './bot.js';
 
 const cfg = (over: Partial<SessionConfig> = {}): SessionConfig => ({
@@ -104,6 +113,88 @@ describe('determinism', () => {
     const eased = runReplay({ ...base, handicap: 1, inputs: tape });
     expect(straight.ok).toBe(true);
     expect(eased.ok && eased.digest === straight.digest).toBe(false);
+  });
+
+  it('replays identically across level boundaries', () => {
+    // The level transition throws away the generated tape ahead of the player and rebuilds
+    // it at the new difficulty. That is the most state-dependent thing the world does, so
+    // it is the most likely place for the server and the browser to part company.
+    const base = cfg({ seed: 4242, mapId: 'night' });
+    const { tape, sim } = playBot(base, 21);
+    expect(sim.level, 'the bot never cleared a level — nothing was exercised').toBeGreaterThan(1);
+
+    const replayed = runReplay({ ...base, inputs: tape });
+    expect(replayed.ok, `${replayed.error} ${replayed.errorDetail}`).toBe(true);
+    expect(replayed.digest).toBe(digest(sim));
+    expect(replayed.score).toBe(sim.score);
+    expect(replayed.level).toBe(sim.level);
+  });
+
+  // A sim with no inputs falls off the first gap, so the structural level tests need a
+  // player. A metronome of jumps on tier 1 survives indefinitely, which is all they need.
+  const drive = (sim: Sim, frames: number, opts: { autoContinue?: boolean } = {}): void => {
+    for (let f = 0; f < frames && sim.mode !== 'ended'; f++) {
+      if (sim.mode === 'levelBreak') {
+        if (opts.autoContinue) sim.applyInput(IN.CONTINUE);
+      } else if (f >= 40 && (f - 40) % 37 === 0) {
+        sim.applyInput(IN.JUMP_DOWN);
+      } else if (f >= 49 && (f - 49) % 37 === 0) {
+        sim.applyInput(IN.JUMP_UP);
+      }
+      sim.step();
+    }
+  };
+
+  it('a level is exactly as long as it says it is', () => {
+    const sim = new Sim(cfg({ seed: 8, mapId: 'dawn' }));
+    drive(sim, LEVEL.seconds * 60 - 1);
+    expect(sim.mode, 'the driver died before the level ended').toBe('running');
+    expect(sim.level).toBe(1);
+    sim.step();
+    expect(sim.mode).toBe('levelBreak');
+  });
+
+  it('the level panel continues by itself so a tape cannot stall on it', () => {
+    const sim = new Sim(cfg({ seed: 8, mapId: 'dawn' }));
+    drive(sim, LEVEL.seconds * 60);
+    expect(sim.mode).toBe('levelBreak');
+    // No input at all from here: the panel has to time out on its own.
+    for (let i = 0; i < LEVEL.breakSeconds * 60; i++) sim.step();
+    expect(sim.mode).toBe('running');
+    expect(sim.level).toBe(2);
+  });
+
+  it('CONTINUE does nothing outside the level panel', () => {
+    const a = new Sim(cfg({ seed: 11 }));
+    const b = new Sim(cfg({ seed: 11 }));
+    for (let i = 0; i < 300; i++) {
+      a.applyInput(IN.CONTINUE);
+      a.step();
+      b.step();
+    }
+    expect(digest(a)).toBe(digest(b));
+  });
+
+  it('every level opens faster than the one before it', () => {
+    const sim = new Sim(cfg({ seed: 8, mapId: 'dawn' }));
+    const openingSpeed: number[] = [];
+    let seen = 0;
+    for (let f = 0; f < MAX_FRAMES && sim.mode !== 'ended' && seen < 4; f++) {
+      if (sim.mode === 'levelBreak') sim.applyInput(IN.CONTINUE);
+      else if (f >= 40 && (f - 40) % 37 === 0) sim.applyInput(IN.JUMP_DOWN);
+      else if (f >= 49 && (f - 49) % 37 === 0) sim.applyInput(IN.JUMP_UP);
+      if (sim.level > seen && sim.mode === 'running') {
+        openingSpeed.push(sim.spd);
+        seen = sim.level;
+      }
+      sim.step();
+    }
+    expect(openingSpeed.length, `only reached level ${sim.level}`).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < openingSpeed.length; i++) {
+      expect(openingSpeed[i]!, `level ${i + 1} opened slower than level ${i}`).toBeGreaterThan(
+        openingSpeed[i - 1]!,
+      );
+    }
   });
 
   it('never touches unseeded randomness', () => {

@@ -35,6 +35,13 @@ export function playBot(
       continue;
     }
 
+    // Clear the level panel a beat after it appears, the way a player would.
+    if (sim.mode === 'levelBreak') {
+      if (sim.breakLeft < 6.5) send(f, IN.CONTINUE);
+      sim.step();
+      continue;
+    }
+
     if (releaseAt === f) {
       send(f, IN.JUMP_UP);
       releaseAt = -1;

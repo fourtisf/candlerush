@@ -72,7 +72,14 @@ export interface SubmitDto {
   balance: number;
   best: number;
   isBest: boolean;
-  stats: { candles: number; bestMult: number; cleanFlips: number; endReason: string | null };
+  stats: {
+    candles: number;
+    bestMult: number;
+    cleanFlips: number;
+    /** Highest level the server's own replay reached. */
+    level: number;
+    endReason: string | null;
+  };
   rank: { daily: number | null; alltime: number | null };
 }
 

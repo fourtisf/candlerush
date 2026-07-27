@@ -76,13 +76,31 @@ async function main(): Promise<void> {
   }
 
   const inRunCoverage = await canvasCoverage(page);
-  await page.screenshot({ path: `${SHOTS}/3-run.png` });
-
+  // Read the HUD while the run is actually in progress — the level loop below deliberately
+  // plays past the end of a level, at which point the HUD is gone and the clock reads 0:00.
   const hud = await page.evaluate(() => ({
     pnl: document.querySelector('.pnl')?.textContent ?? '',
     clock: document.querySelector('.clockv')?.textContent ?? '',
+    level: document.querySelector('.k.lvl')?.textContent ?? '',
     hudOn: document.querySelector('#hud')?.classList.contains('on') ?? false,
   }));
+  await page.screenshot({ path: `${SHOTS}/3-run.png` });
+
+  // Play through the end of a level so the clear panel is exercised, not just assumed.
+  let sawLevelPanel = false;
+  for (let i = 0; i < 60 && !sawLevelPanel; i++) {
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(340);
+    sawLevelPanel = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.scr.on .eyebrow')).some((n) =>
+        (n.textContent ?? '').includes('CLEARED'),
+      ),
+    );
+  }
+  if (sawLevelPanel) {
+    await page.waitForTimeout(700); // the screen crossfade is 350ms
+    await page.screenshot({ path: `${SHOTS}/4-level.png` });
+  }
 
   await browser.close();
 
@@ -97,7 +115,9 @@ async function main(): Promise<void> {
     ['in-run canvas draws', inRunCoverage > 0.2, `coverage ${inRunCoverage.toFixed(3)}`],
     ['HUD is up', hud.hudOn, String(hud.hudOn)],
     ['P&L is accruing', pnl > 0, hud.pnl],
-    ['session clock is running down', clockSeconds > 0 && clockSeconds < 90, hud.clock],
+    ['level clock is running down', clockSeconds > 0 && clockSeconds <= 25, hud.clock],
+    ['HUD shows a level', /LEVEL \d+/.test(hud.level), hud.level],
+    ['the level-clear panel appears', sawLevelPanel, sawLevelPanel ? 'shown' : 'never reached a level end'],
     ['no page or console errors', problems.length === 0, problems.join(' | ') || 'clean'],
   ];
 
