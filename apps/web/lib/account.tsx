@@ -18,6 +18,8 @@ export interface Account {
   mode: 'guest' | 'player';
   ready: boolean;
   name: string;
+  /** Whether the player has chosen this name. A server placeholder does not count. */
+  named: boolean;
   balance: number;
   chars: CharId[];
   maps: MapId[];
@@ -41,7 +43,8 @@ interface Ctx {
   guest: GuestProfile;
   error: string | null;
   busy: boolean;
-  setName: (name: string) => Promise<void>;
+  /** Resolves false when the name did not stick, so the caller can stay put. */
+  setName: (name: string) => Promise<boolean>;
   select: (kind: 'char' | 'map', id: string) => Promise<void>;
   unlock: (itemId: string) => Promise<boolean>;
   startSession: () => Promise<StartedSession>;
@@ -65,6 +68,7 @@ function fromGuest(g: GuestProfile): Account {
     mode: 'guest',
     ready: true,
     name: g.name,
+    named: g.name.trim().length > 0,
     balance: g.balance,
     chars: g.chars,
     maps: g.maps,
@@ -80,6 +84,7 @@ function fromPlayer(p: PlayerDto, balance: number): Account {
     mode: 'player',
     ready: true,
     name: p.name,
+    named: p.named,
     balance,
     chars: p.unlockedChars,
     maps: p.unlockedMaps,
@@ -132,22 +137,26 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setName = useCallback(
-    async (name: string) => {
+    async (name: string): Promise<boolean> => {
       const clean = name.trim().toUpperCase().slice(0, 14);
-      if (!clean) return;
+      if (!clean) return false;
       if (player) {
         setBusy(true);
         try {
           const res = await api.setName(clean);
           setPlayer({ p: res.player, balance: res.balance });
+          return true;
         } catch (err) {
+          // Reported to the caller as well as shown, so nobody is walked past the naming
+          // screen into a hub that still has no name on it.
           report(err);
+          return false;
         } finally {
           setBusy(false);
         }
-      } else {
-        mutateGuest((g) => ({ ...g, name: clean }));
       }
+      mutateGuest((g) => ({ ...g, name: clean }));
+      return true;
     },
     [player, mutateGuest, report],
   );

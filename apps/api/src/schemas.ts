@@ -34,6 +34,8 @@ export const playerSchema = z.object({
   id: z.string(),
   address: z.string(),
   name: z.string(),
+  /** False while the name is still the placeholder the server assigned at sign-in. */
+  named: z.boolean(),
   activeChar: z.string(),
   activeMap: z.string(),
   unlockedChars: z.array(z.string()),

@@ -11,11 +11,48 @@ import { Wordmark } from './Wordmark';
 
 /* ── profile ───────────────────────────────────────────────────────────────── */
 
-export function ProfileScreen({ on, onEnter, onError }: { on: boolean; onEnter: () => void; onError: (m: string) => void }) {
-  const { account, setName } = useAccount();
-  const [value, setValue] = useState(account.name);
+/**
+ * Exactly the server's rule, character for character — see `nameSchema` in
+ * apps/api/src/schemas.ts. Checking anything looser here means the player types a name,
+ * the button lets them through, and the API rejects it with a message about a regex.
+ */
+const NAME_ALLOWED = /^[\p{L}\p{N} ._-]+$/u;
+const NAME_MAX = 14;
 
-  useEffect(() => setValue(account.name), [account.name]);
+function nameProblem(raw: string): string | null {
+  const clean = raw.trim();
+  if (!clean) return 'PICK A NAME TO OPEN YOUR ACCOUNT';
+  if (clean.length > NAME_MAX) return `${NAME_MAX} CHARACTERS MAXIMUM`;
+  if (!NAME_ALLOWED.test(clean)) return 'LETTERS, NUMBERS, SPACE, DOT, DASH AND UNDERSCORE ONLY';
+  return null;
+}
+
+export function ProfileScreen({ on, onEnter, onError }: { on: boolean; onEnter: () => void; onError: (m: string) => void }) {
+  const { account, setName, busy } = useAccount();
+  const [value, setValue] = useState(account.name);
+  const [touched, setTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Only adopt a name the player actually chose. A server placeholder in the box would
+  // read as "already filled in" and put them straight back where they started.
+  useEffect(() => {
+    if (account.named) setValue(account.name);
+  }, [account.name, account.named]);
+
+  const problem = nameProblem(value);
+
+  const submit = async () => {
+    setTouched(true);
+    if (problem || saving) return;
+    setSaving(true);
+    try {
+      // Only move on if the name stuck. A failed save used to drop the player into the hub
+      // with no name on the account at all.
+      if (await setName(value)) onEnter();
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <section className={`scr${on ? ' on' : ''}`}>
@@ -26,23 +63,40 @@ export function ProfileScreen({ on, onEnter, onError }: { on: boolean; onEnter: 
         <ContractAddress />
         <input
           type="text"
-          maxLength={14}
+          maxLength={NAME_MAX}
           placeholder="TRADER NAME"
           autoComplete="off"
           spellCheck={false}
+          required
+          aria-invalid={touched && !!problem}
+          aria-describedby="namehint"
           value={value}
-          onChange={(e) => setValue(e.target.value.toUpperCase())}
-        />
-        <WalletButton onError={onError} />
-        <div style={{ height: 18 }} />
-        <button
-          className="cta wide"
-          onClick={() => {
-            void setName(value || `TRADER${Math.floor(100 + Math.random() * 900)}`);
-            onEnter();
+          onChange={(e) => {
+            const next = e.target.value.toUpperCase();
+            setValue(next);
+            // Flag a bad character the moment it is typed, but do not nag an empty field
+            // somebody has not reached yet.
+            if (next.trim()) setTouched(true);
           }}
+          onBlur={() => setTouched(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void submit();
+          }}
+        />
+        <div id="namehint" className={`hint${touched && problem ? ' bad' : ''}`}>
+          {touched && problem ? problem : 'THIS IS THE NAME ON THE LEADERBOARD'}
+        </div>
+        <WalletButton onError={onError} />
+        <div style={{ height: 14 }} />
+        {/* Dimmed but never `disabled`. A disabled button swallows the click, so pressing
+            it while the field is empty would say nothing at all — the player is left with
+            a grey button and no reason. This one answers when pressed. */}
+        <button
+          className={`cta wide${problem ? ' off' : ''}${saving || busy ? ' busy' : ''}`}
+          aria-disabled={!!problem || saving || busy}
+          onClick={() => void submit()}
         >
-          Open account
+          {saving ? 'Opening…' : 'Open account'}
         </button>
         <div className="keys">A WALLET IS OPTIONAL WHILE YOU PLAY LOCALLY</div>
       </div>

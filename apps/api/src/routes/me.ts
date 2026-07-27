@@ -24,7 +24,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     async (req) => {
       const updated = await prisma.player.update({
         where: { id: req.player!.id },
-        data: { name: req.body.name },
+        data: { name: req.body.name, named: true },
       });
       return { player: publicPlayer(updated), balance: await balanceOf(updated.id) };
     },

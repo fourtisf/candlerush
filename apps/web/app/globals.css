@@ -73,8 +73,18 @@ h2{font-family:var(--D);font-weight:800;letter-spacing:-.035em;font-size:clamp(2
 .lede{font-size:10.5px;line-height:1.9;letter-spacing:.05em;color:var(--dim);margin:14px auto 22px;max-width:300px}
 .cta{font-family:var(--D);font-weight:800;font-size:16px;background:var(--gold);color:#1A0F04;border-radius:15px;padding:16px 40px;box-shadow:0 12px 38px -10px rgba(255,206,92,.6);transition:.16s;display:inline-block}
 .cta:hover{transform:translateY(-2px)}.cta:active{transform:scale(.97)}
+/* Not-yet-available. It keeps its click so it can say why — see ProfileScreen — but it
+   must not keep the glow, or it still reads as the thing to press. */
+.cta.off,.cta:disabled{opacity:.42;box-shadow:none}
+.cta.off:hover,.cta:disabled:hover{transform:none}
+.cta:disabled{cursor:not-allowed}
 .cta.g{background:var(--bull);color:#04231A;box-shadow:0 12px 38px -10px rgba(34,230,160,.6)}
 .cta.wide{display:block;width:100%}
+/* Sits under the name field: guidance by default, the reason the button is off when the
+   field is wrong. One element, so the panel never changes height mid-typing. */
+.hint{font-size:8.5px;letter-spacing:.16em;color:var(--faint);margin:8px 2px 0;
+  min-height:14px;line-height:1.6;text-align:left}
+.hint.bad{color:var(--bear)}
 .ghost{display:block;margin:12px auto 0;color:var(--faint);font-size:9px;letter-spacing:.2em;padding:8px}
 .ghost:hover{color:var(--dim)}
 input[type=text]{width:100%;background:rgba(255,244,232,.06);border:1px solid var(--edge);border-radius:13px;padding:15px 17px;color:var(--ink);font-family:var(--D);font-weight:800;font-size:18px;text-align:center}

@@ -97,9 +97,11 @@ export function Game() {
     if (screen !== 'playing') attractRef.current?.restart(account.map, account.char);
   }, [account.map, account.char, screen]);
 
+  // `named`, not `name`: a wallet sign-in arrives with a server-assigned placeholder, and
+  // skipping the screen on that would mean the player never gets to choose one.
   useEffect(() => {
-    if (account.ready && screen === 'profile' && account.name) setScreen('hub');
-  }, [account.ready, account.name, screen]);
+    if (account.ready && screen === 'profile' && account.named) setScreen('hub');
+  }, [account.ready, account.named, screen]);
 
   /* ── session lifecycle ─────────────────────────────────────────────────── */
 

@@ -7,6 +7,7 @@ export function publicPlayer(p: Player) {
     id: p.id,
     address: p.address,
     name: p.name,
+    named: p.named,
     activeChar: p.activeChar,
     activeMap: p.activeMap,
     unlockedChars: p.unlockedChars,
@@ -18,7 +19,13 @@ export function publicPlayer(p: Player) {
   };
 }
 
-/** Anonymous but stable-looking default, so nobody is forced through a naming screen. */
+/**
+ * A placeholder, not a name.
+ *
+ * The column is NOT NULL and a row exists the moment a wallet signs in, so it needs
+ * something. `named` stays false until the player picks one for themselves, which is what
+ * keeps them out of the leaderboard under a number nobody chose.
+ */
 function defaultName(address: string): string {
   return `TRADER${address.slice(-4).toUpperCase()}`;
 }

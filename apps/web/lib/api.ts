@@ -43,6 +43,7 @@ export interface PlayerDto {
   id: string;
   address: string;
   name: string;
+  named: boolean;
   activeChar: CharId;
   activeMap: MapId;
   unlockedChars: CharId[];
