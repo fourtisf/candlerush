@@ -13,15 +13,16 @@
 /**
  * v2 replaced the single 90-second session with levels. v3 made DECLINE meaningful on the
  * level-clear panel — the "Back" button — which changes how an existing tape is
- * interpreted, not just what it looks like. Any tape recorded against an older version is
- * meaningless here and is rejected on submit.
+ * interpreted, not just what it looks like. v4 made the ladder long enough to stop being a
+ * ceiling, and plateaued the difficulty so it could be. Any tape recorded against an older
+ * version is meaningless here and is rejected on submit.
  *
  * Bump on ANY gameplay change: physics, generation, scoring, ordering of RNG draws, or
  * the meaning of an input code. Sessions record the version they were issued under and
  * replays are rejected on mismatch. An old tape replayed on a new engine produces
  * garbage, and garbage that silently becomes money is the worst failure this system has.
  */
-export const ENGINE_VERSION = 3;
+export const ENGINE_VERSION = 4;
 
 /**
  * Fixed virtual viewport.
@@ -83,8 +84,17 @@ export const LEVEL = {
   breakSeconds: 8,
   /** Closing bell inside each level: the last few seconds pay double. */
   bell: 5,
-  /** Ceiling, so a tape has a bounded length. Reaching it clears the run. */
-  maxLevels: 15,
+  /**
+   * Ceiling, so a tape has a bounded length. Reaching it clears the run.
+   *
+   * Thirty rather than fifteen because fifteen was a ceiling anyone good could touch, and
+   * a leaderboard where the best players all finish is decided by rounding rather than by
+   * skill. Difficulty stops climbing at `DIFFICULTY_PEAK` long before this, so the back
+   * half of the ladder is an endurance test at a fixed, brutal pace rather than a wall
+   * that eventually becomes unplayable. It is also what keeps the run bounded: thirty
+   * levels is 16.5 minutes of play, which fits the replay budget and the submit window.
+   */
+  maxLevels: 30,
 } as const;
 
 export const LEVEL_FRAMES = Math.round(LEVEL.seconds / STEP);
@@ -112,15 +122,32 @@ export const MAX_FRAMES = LEVEL.maxLevels * (LEVEL_FRAMES + BREAK_FRAMES) + REVI
  * unfair rather than hard.
  */
 
+/**
+ * The level at which difficulty stops climbing.
+ *
+ * Everything above this plays at level-15 pace. Left unclamped, level 30 would open at
+ * 905 px/s against a 68px candle pitch — twenty-three candles a second, which is not hard,
+ * it is a slideshow of things you cannot react to. An endless mode has to plateau its
+ * difficulty and keep raising its payout; only the second half of that is unbounded.
+ */
+export const DIFFICULTY_PEAK = 15;
+
+/** Difficulty reads this rather than the raw level. Payout deliberately does not. */
+const hard = (level: number): number => Math.min(level, DIFFICULTY_PEAK);
+
 /** Starting speed multiplier for a level. */
-export const levelSpeedStart = (level: number): number => 1 + 0.1 * (level - 1);
+export const levelSpeedStart = (level: number): number => 1 + 0.1 * (hard(level) - 1);
 /** Ceiling speed multiplier for a level. */
-export const levelSpeedMax = (level: number): number => 1 + 0.08 * (level - 1);
+export const levelSpeedMax = (level: number): number => 1 + 0.08 * (hard(level) - 1);
 /** Gap frequency multiplier. The resulting probability is clamped in the generator. */
-export const levelGapMul = (level: number): number => 1 + 0.15 * (level - 1);
+export const levelGapMul = (level: number): number => 1 + 0.15 * (hard(level) - 1);
 /** Trend-length multiplier: shorter runs mean more forced flips. Floored so trends stay readable. */
-export const levelRunMul = (level: number): number => Math.max(0.5, 1 - 0.06 * (level - 1));
-/** Payout multiplier. Surviving deeper is where the money is. */
+export const levelRunMul = (level: number): number => Math.max(0.5, 1 - 0.06 * (hard(level) - 1));
+/**
+ * Payout multiplier, and the one thing that keeps climbing after the difficulty stops.
+ * Past the peak, depth is the only thing separating two players who can both survive the
+ * plateau, so this is what the leaderboard is actually measuring.
+ */
 export const levelPay = (level: number): number => 1 + 0.25 * (level - 1);
 /** Hard ceiling on gap probability, whatever the level multiplier works out to. */
 export const MAX_GAP_CHANCE = 0.35;
@@ -329,4 +356,53 @@ export function priceOf(itemId: string): { kind: 'char' | 'map'; cost: number; n
   const m = MAPS.find((x) => x.id === itemId);
   if (m) return { kind: 'map', cost: m.cost, name: m.name };
   return null;
+}
+
+/* ── stakes ─────────────────────────────────────────────────────────────────
+ *
+ * What a balance is *for* once everything is unlocked.
+ *
+ * The whole catalogue costs about 1.5M, which a competent player clears in a dozen runs.
+ * After that money has no use and the game quietly stops having an economy. A stake fixes
+ * that by making the balance something you put at risk every run rather than something you
+ * accumulate: pay up front, and the payout is multiplied.
+ *
+ * Break-even is `cost / (mult - 1)` — 42k, 71k and 133k. All three are scores a decent
+ * player reaches, so every tier is a real decision rather than a trap. Paper is free and
+ * always will be: the game must never be behind a balance.
+ *
+ * The leaderboard records the raw score, not the multiplied payout. Rank is skill; the
+ * stake only decides what that skill is worth to you.
+ */
+export interface StakeDef {
+  id: StakeId;
+  name: string;
+  /** Debited when the session is issued. Refunded if the session never settles. */
+  cost: number;
+  /** Multiplies the payout. Never the leaderboard score. */
+  mult: number;
+  note: string;
+}
+
+export type StakeId = 'paper' | 'small' | 'standard' | 'size';
+
+export const STAKES: readonly StakeDef[] = [
+  { id: 'paper', name: 'Paper', cost: 0, mult: 1, note: 'No risk. Play for the board.' },
+  { id: 'small', name: 'Small', cost: 25_000, mult: 1.6, note: 'Breaks even around 42K.' },
+  { id: 'standard', name: 'Standard', cost: 100_000, mult: 2.4, note: 'Breaks even around 71K.' },
+  { id: 'size', name: 'Size', cost: 400_000, mult: 4, note: 'Breaks even around 133K.' },
+] as const;
+
+export const DEFAULT_STAKE: StakeId = 'paper';
+
+export function stakeById(id: string): StakeDef | null {
+  return STAKES.find((s) => s.id === id) ?? null;
+}
+
+/**
+ * What a run pays. Rounded once, here, so the client's preview and the server's credit are
+ * the same arithmetic rather than two implementations that agree most of the time.
+ */
+export function stakePayout(score: number, mult: number): number {
+  return Math.max(0, Math.round(score * mult));
 }

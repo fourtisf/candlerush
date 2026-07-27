@@ -53,8 +53,14 @@ const schema = z.object({
    * ten seconds into level one.
    */
   SESSION_MIN_ELAPSED_MS: z.coerce.number().int().positive().default(2_000),
-  SESSION_MAX_ELAPSED_MS: z.coerce.number().int().positive().default(900_000),
-  REPLAY_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
+  SESSION_MAX_ELAPSED_MS: z.coerce.number().int().positive().default(1_800_000),
+  /**
+   * A full-length run is 59,760 frames. Warm, that replays in about 150ms; the first
+   * replay on a cold worker measured 750ms while the JIT caught up. The ceiling is set
+   * well clear of that because the failure mode is rejecting a legitimate thirty-level
+   * run, which is a far worse outcome than holding a worker for an extra second.
+   */
+  REPLAY_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   REPLAY_WORKERS: z.coerce.number().int().positive().max(16).default(2),
 
   /** Rate limits. */

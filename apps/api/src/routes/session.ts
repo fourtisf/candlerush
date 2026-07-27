@@ -1,15 +1,39 @@
 import { randomInt } from 'node:crypto';
-import { ENGINE_VERSION, STEP, type CharId, type MapId } from '@candle-rush/engine';
+import {
+  DEFAULT_STAKE,
+  ENGINE_VERSION,
+  STEP,
+  stakeById,
+  stakePayout,
+  type CharId,
+  type MapId,
+} from '@candle-rush/engine';
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { bump, k } from '../redis.js';
-import { errorSchema, sessionStartBody, sessionStartReply, sessionSubmitBody, sessionSubmitReply } from '../schemas.js';
-import { append, playerRef, refreshBalanceCache } from '../services/ledger.js';
+import {
+  errorSchema,
+  sessionAbandonBody,
+  sessionAbandonReply,
+  sessionStartBody,
+  sessionStartReply,
+  sessionSubmitBody,
+  sessionSubmitReply,
+} from '../schemas.js';
+import { append, computeBalance, refreshBalanceCache, serializable } from '../services/ledger.js';
 import * as lb from '../services/leaderboard.js';
 import { nextHandicap, owns } from '../services/players.js';
 import { ReplayTimeoutError, type AnyReplayPool } from '../services/replay-pool.js';
+import { refundStake, refundStranded } from '../services/stakes.js';
+
+/** The player cannot cover the stake they asked for. */
+class NotEnoughForStake extends Error {
+  constructor(readonly shortfall: number) {
+    super('insufficient balance for stake');
+  }
+}
 
 /**
  * How long an issued session stays open before it is written off as abandoned.
@@ -53,6 +77,12 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
       async (req, reply) => {
         const player = req.player!;
         const { mapId, charId } = req.body;
+        // An id, resolved against the server's own table. A cost that arrived in the body
+        // would be a price the player set for themselves.
+        const stake = stakeById(req.body.stakeId ?? DEFAULT_STAKE);
+        if (!stake) {
+          return reply.code(400).send({ error: 'NO_SUCH_STAKE', message: 'That is not a stake.' });
+        }
 
         const perPlayer = await bump(k('rl', 'start', 'p', player.id), 3600);
         if (perPlayer > e.SESSION_START_PER_HOUR_PLAYER) {
@@ -73,6 +103,10 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
           where: { playerId: player.id, status: 'OPEN', issuedAt: { lt: cutoff } },
           data: { status: 'EXPIRED' },
         });
+        // Whatever just expired was holding a stake. Returning it here rather than on a
+        // timer means the code that strands the money is the code that frees it.
+        await refundStranded(player.id);
+
         const live = await prisma.session.findFirst({
           where: { playerId: player.id, status: 'OPEN', issuedAt: { gte: cutoff } },
           select: { id: true },
@@ -84,16 +118,54 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
         }
 
         const seed = randomInt(0, 2 ** 31);
-        const session = await prisma.session.create({
-          data: {
-            playerId: player.id,
-            seed,
-            mapId,
-            charId,
-            handicap: player.handicap,
-            engineVersion: ENGINE_VERSION,
-          },
-        });
+        let session;
+        try {
+          // One transaction, at serializable isolation, for the same reason the shop uses
+          // one: the balance is re-derived from the rows inside it, so two concurrent
+          // starts cannot stake the same money twice. Creating the session and debiting
+          // for it together is what makes "a stake with no session" and "a session with no
+          // stake" both impossible rather than merely unlikely.
+          session = await serializable(async (tx) => {
+            if (stake.cost > 0) {
+              const balance = await computeBalance(player.id, tx);
+              if (balance < stake.cost) throw new NotEnoughForStake(stake.cost - balance);
+            }
+            const created = await tx.session.create({
+              data: {
+                playerId: player.id,
+                seed,
+                mapId,
+                charId,
+                handicap: player.handicap,
+                engineVersion: ENGINE_VERSION,
+                stakeId: stake.id,
+                stakeCost: stake.cost,
+                stakeMult: stake.mult,
+                stakeSettled: stake.cost === 0,
+              },
+            });
+            if (stake.cost > 0) {
+              await append(tx, {
+                playerId: player.id,
+                kind: 'SESSION_STAKE',
+                amount: -stake.cost,
+                refType: 'session',
+                refId: created.id,
+                memo: `${stake.name} stake`,
+              });
+            }
+            return created;
+          });
+        } catch (err) {
+          if (err instanceof NotEnoughForStake) {
+            return reply.code(402).send({
+              error: 'INSUFFICIENT_BALANCE',
+              message: `You need ${err.shortfall.toLocaleString()} more to put up that stake.`,
+            });
+          }
+          throw err;
+        }
+
         // Remember the loadout so the hub is server-side state rather than a client claim.
         if (player.activeChar !== charId || player.activeMap !== mapId) {
           await prisma.player.update({ where: { id: player.id }, data: { activeChar: charId, activeMap: mapId } });
@@ -110,8 +182,47 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
             handicap: player.handicap,
             engineVersion: ENGINE_VERSION,
           },
+          stake: { id: stake.id, name: stake.name, cost: stake.cost, mult: stake.mult },
+          balance: await refreshBalanceCache(player.id),
           issuedAt: session.issuedAt.toISOString(),
         };
+      },
+    );
+
+    /**
+     * Give up on an open session.
+     *
+     * Without this, walking away from a run locks the player out for as long as the submit
+     * window — half an hour, because a thirty-level run has to fit inside it. The stake
+     * comes straight back, and the session can never be scored afterwards, so there is
+     * nothing to farm here: the rate limit on issuing sessions is what bounds anyone
+     * hunting for a favourable seed, and that limit is unaffected.
+     */
+    r.post(
+      '/session/abandon',
+      {
+        preHandler: app.requireAuth,
+        schema: {
+          body: sessionAbandonBody,
+          response: { 200: sessionAbandonReply, 404: errorSchema },
+        },
+        config: { rateLimit: { max: 40, timeWindow: '1 hour' } },
+      },
+      async (req, reply) => {
+        const player = req.player!;
+        const flipped = await prisma.session.updateMany({
+          where: { id: req.body.sessionId, playerId: player.id, status: 'OPEN' },
+          data: { status: 'ABANDONED', submittedAt: new Date() },
+        });
+        if (flipped.count === 0) {
+          return reply.code(404).send({ error: 'NO_SESSION', message: 'No open session with that id.' });
+        }
+        const row = await prisma.session.findUniqueOrThrow({
+          where: { id: req.body.sessionId },
+          select: { id: true, playerId: true, stakeCost: true },
+        });
+        const refunded = await refundStake(row, 'stake returned — session abandoned');
+        return { abandoned: true, refunded: refunded ? row.stakeCost : 0, balance: await refreshBalanceCache(player.id) };
       },
     );
 
@@ -167,6 +278,11 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
               replay: inputs as unknown as object,
             },
           });
+          // A rejected tape gets its stake back. A rejection is not always the player's
+          // doing — a wall-clock window set for the wrong game once rejected every run on
+          // this box — and there is nothing to exploit: a payout needs a replay that
+          // validates, so this returns the player's own money and nothing more.
+          await refundStake(session, `stake returned — ${code}`);
           return reply.code(422).send({ error: code, message, detail });
         };
 
@@ -225,6 +341,9 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
         }
 
         const score = result.score;
+        // The leaderboard gets `score`; the wallet gets this. Rank stays a measure of
+        // skill, and the stake only decides what that skill was worth to the player.
+        const credited = stakePayout(score, session.stakeMult);
         const flagged = result.inputCount >= 8 && result.inputJitterMs < e.JITTER_FLAG_MS;
 
         if (clientScore !== undefined && clientScore !== score) {
@@ -262,15 +381,19 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
           });
           if (flip.count === 0) return null;
 
-          if (score > 0) {
+          if (credited > 0) {
             await append(tx, {
               playerId: player.id,
               kind: 'SESSION_PAYOUT',
-              amount: score,
+              amount: credited,
               refType: 'session',
               refId: session.id,
+              memo: session.stakeCost > 0 ? `${session.stakeId} stake, x${session.stakeMult}` : undefined,
             });
           }
+          // Settled either way: a scored run converts its stake into the payout above, and
+          // a zero-scoring run has spent it. Neither is eligible for a refund.
+          await tx.session.updateMany({ where: { id: session.id }, data: { stakeSettled: true } });
 
           const updated = await tx.player.update({
             where: { id: player.id },
@@ -306,7 +429,13 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
 
         return {
           score,
-          credited: score,
+          credited,
+          stake: {
+            id: session.stakeId,
+            cost: session.stakeCost,
+            mult: session.stakeMult,
+            net: credited - session.stakeCost,
+          },
           balance,
           best: settled.bestSession,
           isBest: score > player.bestSession,

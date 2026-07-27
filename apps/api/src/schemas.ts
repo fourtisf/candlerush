@@ -1,4 +1,4 @@
-import { CHARS, ENGINE_VERSION, MAPS, MAX_FRAMES, MAX_INPUTS } from '@candle-rush/engine';
+import { CHARS, ENGINE_VERSION, MAPS, MAX_FRAMES, MAX_INPUTS, STAKES } from '@candle-rush/engine';
 import { z } from 'zod';
 
 /**
@@ -80,9 +80,13 @@ export const migrateGuestBody = z.object({ balance: z.number().int().nonnegative
 
 /* ── session ───────────────────────────────────────────────────────────────── */
 
+export const stakeIdSchema = z.enum(STAKES.map((s) => s.id) as [string, ...string[]]);
+
 export const sessionStartBody = z.object({
   mapId: mapIdSchema,
   charId: charIdSchema,
+  /** An id, never an amount. The cost and the multiplier are the server's to decide. */
+  stakeId: stakeIdSchema.optional(),
 });
 
 export const sessionStartReply = z.object({
@@ -96,7 +100,21 @@ export const sessionStartReply = z.object({
     handicap: z.number(),
     engineVersion: z.number().int(),
   }),
+  stake: z.object({
+    id: z.string(),
+    name: z.string(),
+    cost: z.number().int(),
+    mult: z.number(),
+  }),
+  balance: z.number().int(),
   issuedAt: z.string(),
+});
+
+export const sessionAbandonBody = z.object({ sessionId: z.string().min(1).max(64) });
+export const sessionAbandonReply = z.object({
+  abandoned: z.boolean(),
+  refunded: z.number().int(),
+  balance: z.number().int(),
 });
 
 export const sessionSubmitBody = z.object({
@@ -108,8 +126,17 @@ export const sessionSubmitBody = z.object({
 });
 
 export const sessionSubmitReply = z.object({
+  /** What the run was worth on its own. This is the leaderboard number. */
   score: z.number().int(),
+  /** What it paid, after the stake multiplier. */
   credited: z.number().int(),
+  stake: z.object({
+    id: z.string(),
+    cost: z.number().int(),
+    mult: z.number(),
+    /** credited − cost. Negative when the run did not clear its own stake. */
+    net: z.number().int(),
+  }),
   balance: z.number().int(),
   best: z.number().int(),
   isBest: z.boolean(),

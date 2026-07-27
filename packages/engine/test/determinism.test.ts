@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BREAK_FRAMES,
+  C,
+  DIFFICULTY_PEAK,
   ENGINE_VERSION,
   IN,
   LEVEL,
+  LEVEL_FRAMES,
+  MAPS,
   MAX_FRAMES,
+  REVIVE_FRAMES,
   Sim,
   digest,
+  levelGapMul,
+  levelPay,
+  levelRunMul,
+  levelSpeedMax,
+  levelSpeedStart,
   runReplay,
   type InputEvent,
   type SessionConfig,
@@ -249,6 +260,47 @@ describe('determinism', () => {
         openingSpeed[i - 1]!,
       );
     }
+  });
+
+  it('stops getting harder at the peak, and never stops paying more', () => {
+    // An endless ladder has to plateau its difficulty or it stops being hard and starts
+    // being a slideshow of things nobody can react to. Payout is the only thing allowed to
+    // keep climbing, and past the peak it is the only thing separating two players who can
+    // both survive the plateau.
+    for (let l = 2; l <= DIFFICULTY_PEAK; l++) {
+      expect(levelSpeedStart(l), `level ${l}`).toBeGreaterThan(levelSpeedStart(l - 1));
+      expect(levelGapMul(l), `level ${l}`).toBeGreaterThan(levelGapMul(l - 1));
+    }
+    for (const beyond of [DIFFICULTY_PEAK + 1, DIFFICULTY_PEAK + 5, LEVEL.maxLevels]) {
+      expect(levelSpeedStart(beyond), `speed at ${beyond}`).toBe(levelSpeedStart(DIFFICULTY_PEAK));
+      expect(levelSpeedMax(beyond)).toBe(levelSpeedMax(DIFFICULTY_PEAK));
+      expect(levelGapMul(beyond)).toBe(levelGapMul(DIFFICULTY_PEAK));
+      expect(levelRunMul(beyond)).toBe(levelRunMul(DIFFICULTY_PEAK));
+      expect(levelPay(beyond), `pay at ${beyond}`).toBeGreaterThan(levelPay(DIFFICULTY_PEAK));
+    }
+  });
+
+  it('never opens a level above its own speed ceiling', () => {
+    // `startLevel` assigns the speed outright; `advance` then clamps it with Math.min. A
+    // level that opened above its own cap would be yanked backwards on its first frame and
+    // play slower than the level before it — the ramp would be running in reverse.
+    for (let l = 1; l <= LEVEL.maxLevels; l++) {
+      for (const m of MAPS) {
+        expect(C.spd0 * m.spd * levelSpeedStart(l), `level ${l} on ${m.id}`).toBeLessThan(
+          C.spdMax * m.spd * levelSpeedMax(l),
+        );
+      }
+    }
+  });
+
+  it('keeps the longest legal run inside every budget that has to hold it', () => {
+    expect(MAX_FRAMES).toBe(LEVEL.maxLevels * (LEVEL_FRAMES + BREAK_FRAMES) + REVIVE_FRAMES);
+    // The API's submit ceiling has to cover the longest run anyone can legally play, or a
+    // deep player is rejected for taking too long. Duplicated here on purpose: the engine
+    // cannot import the API's config, and the two drifting apart is exactly the failure
+    // that once had the server rejecting every run it was sent.
+    const playSeconds = LEVEL.maxLevels * (LEVEL.seconds + LEVEL.breakSeconds);
+    expect(playSeconds, 'longest run exceeds SESSION_MAX_ELAPSED_MS').toBeLessThan(1800);
   });
 
   it('never touches unseeded randomness', () => {

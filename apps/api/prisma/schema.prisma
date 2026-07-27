@@ -56,6 +56,14 @@ model Session {
   charId        String
   handicap      Float         @default(0)
   engineVersion Int
+
+  // Resolved when the session is issued, not read from the table at settle time. A later
+  // change to the stake tiers must not retroactively repay a session that was already
+  // issued — the same reasoning that keeps `handicap` here.
+  stakeId       String        @default("paper")
+  stakeCost     Int           @default(0)
+  stakeMult     Float         @default(1)
+  stakeSettled  Boolean       @default(false) // stake refunded or converted to a payout
   issuedAt      DateTime      @default(now())
   submittedAt   DateTime?
   status        SessionStatus @default(OPEN)
@@ -92,6 +100,7 @@ enum SessionStatus {
   SUBMITTED
   REJECTED
   EXPIRED
+  ABANDONED
 }
 
 model LedgerEntry {
@@ -111,8 +120,11 @@ model LedgerEntry {
 
 enum LedgerKind {
   SESSION_PAYOUT
+  SESSION_STAKE // debited when a session is issued
+  SESSION_REFUND // returned when a session never settles into a payout
   UNLOCK_PURCHASE
   TOURNAMENT_PRIZE
+  DAILY_PRIZE
   ADJUSTMENT
   GUEST_MIGRATION
 }
