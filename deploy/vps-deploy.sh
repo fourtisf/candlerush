@@ -7,7 +7,7 @@
 # which does not delete anything.
 #
 # Usage, as root:
-#   RHC_CHAIN_ID=<id> DOMAIN=candlerush.fun EMAIL=you@example.com \
+#   RHC_CHAIN_ID=YOUR_CHAIN_ID DOMAIN=candlerush.fun EMAIL=you@example.com \
 #     bash deploy/vps-deploy.sh -y
 #
 set -euo pipefail
@@ -58,8 +58,10 @@ The API will not boot without it, deliberately. A wrong Robinhood Chain id does 
 loudly — it silently accepts SIWE signatures that were scoped to a different network, which
 means accepting a wallet signature meant for somewhere else.
 
-Take the value from https://docs.robinhood.com/chain and re-run:
-  RHC_CHAIN_ID=<id> bash deploy/vps-deploy.sh -y"
+Take the value from https://docs.robinhood.com/chain and re-run, substituting the number
+(no angle brackets — bash reads < and > as redirection and will fail before this script
+even starts):
+  RHC_CHAIN_ID=42161 bash deploy/vps-deploy.sh -y"
 fi
 
 WEB_PORT=${WEB_PORT:-3000}

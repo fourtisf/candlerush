@@ -58,7 +58,7 @@ unranked and the UI says so.
 ## Deploying
 
 ```sh
-RHC_CHAIN_ID=<id> DOMAIN=candlerush.fun EMAIL=you@example.com \
+RHC_CHAIN_ID=YOUR_CHAIN_ID DOMAIN=candlerush.fun EMAIL=you@example.com \
   bash deploy/vps-deploy.sh -y
 ```
 

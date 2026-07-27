@@ -27,7 +27,7 @@ ssh root@YOUR_IP
 git clone --branch claude/new-session-2pbliw \
   https://github.com/fourtisf/candlerush.git /tmp/cr-bootstrap
 
-RHC_CHAIN_ID=<id> DOMAIN=candlerush.fun EMAIL=you@example.com \
+RHC_CHAIN_ID=YOUR_CHAIN_ID DOMAIN=candlerush.fun EMAIL=you@example.com \
   bash /tmp/cr-bootstrap/deploy/vps-deploy.sh -y
 ```
 
