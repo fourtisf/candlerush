@@ -22,10 +22,28 @@ cd "$APP_DIR"
 
 say "Pulling $BRANCH"
 BEFORE=$(git rev-parse HEAD)
+SELF_BEFORE=$(git rev-parse "HEAD:deploy/update.sh" 2>/dev/null || echo none)
 git fetch --depth 1 origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
 ok "$(git log --oneline -1)"
 [ "$BEFORE" = "$(git rev-parse HEAD)" ] && warn "already up to date — rebuilding anyway"
+
+# This script has just overwritten itself.
+#
+# Bash reads a script incrementally from a byte offset, so replacing the file underneath a
+# running one means the rest of this run is whatever happens to sit at that offset in the
+# new file. In practice the old logic finished — which is how a deploy that shipped a wider
+# replay window went on to report the old one "left as is", and why the ceiling on this box
+# was still the number written for a shorter game.
+#
+# So: if the script changed, hand over to the new one and let it start from the top. The
+# pull is already done, and CR_UPDATE_REEXEC stops the handover from happening twice.
+SELF_AFTER=$(git rev-parse "HEAD:deploy/update.sh" 2>/dev/null || echo none)
+if [ "$SELF_BEFORE" != "$SELF_AFTER" ] && [ -z "${CR_UPDATE_REEXEC:-}" ]; then
+  ok "deploy/update.sh changed in this pull — restarting with the new one"
+  export CR_UPDATE_REEXEC=1
+  exec bash "$APP_DIR/deploy/update.sh" "$@"
+fi
 
 # NEXT_PUBLIC_* are baked into the bundle at build time, so publishing the contract address
 # is a rebuild rather than a restart. Set it on the command line and this writes it in:
@@ -121,13 +139,31 @@ pm2 save --force >/dev/null
 ok "reloaded"
 
 say "Checking"
-sleep 4
 # The ports the deploy actually chose, which may not be the defaults if something else on
 # this box already had them.
 API_PORT=$(grep '^API_PORT=' deploy/ports.env 2>/dev/null | cut -d= -f2); API_PORT=${API_PORT:-4000}
 WEB_PORT=$(grep '^WEB_PORT=' deploy/ports.env 2>/dev/null | cut -d= -f2); WEB_PORT=${WEB_PORT:-3000}
-API_HEALTH=$(curl -fsS "http://127.0.0.1:$API_PORT/health" 2>/dev/null || echo '')
-WEB_CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$WEB_PORT/" 2>/dev/null || echo '000')
-[ -n "$API_HEALTH" ] && ok "api  $API_HEALTH" || warn "api not answering — pm2 logs candle-rush-api"
+
+# Prisma's client init and the replay worker pool take a moment. A single four-second sleep
+# reported a healthy API as down often enough to be worse than useless.
+API_HEALTH=''
+for _ in $(seq 1 15); do
+  API_HEALTH=$(curl -fsS -m 3 "http://127.0.0.1:$API_PORT/health" 2>/dev/null || echo '')
+  [ -n "$API_HEALTH" ] && break
+  sleep 2
+done
+WEB_CODE=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://127.0.0.1:$WEB_PORT/" 2>/dev/null || echo '000')
+
+if [ -n "$API_HEALTH" ]; then
+  ok "api  $API_HEALTH"
+else
+  warn "api still not answering after 30s — the reason, from its own log:"
+  pm2 logs candle-rush-api --lines 25 --nostream --err 2>/dev/null | tail -25 | sed 's/^/    /'
+fi
 [ "$WEB_CODE" = "200" ] && ok "web  HTTP 200" || warn "web returned $WEB_CODE — pm2 logs candle-rush-web"
+
+if [ -z "$API_HEALTH" ]; then
+  printf '\n\033[31mDeployed, but the API is down. Nothing will be scored until it is up.\033[0m\n'
+  exit 1
+fi
 printf '\n\033[1;32mDone.\033[0m\n'

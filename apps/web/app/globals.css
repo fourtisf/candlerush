@@ -354,13 +354,42 @@ button.who:hover{background:rgba(255,244,232,.07)}
 .netrow .up{color:var(--bull)}
 .netrow .down{color:var(--bear)}
 
-.rules{display:grid;gap:10px;margin:18px 0;text-align:left}
-.rule2{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:start;
-  border:1px solid var(--edge);border-radius:13px;padding:12px 13px;
-  background:rgba(255,244,232,.035)}
-.rk{font-size:8px;letter-spacing:.18em;color:var(--dim);padding-top:3px}
-.rb b{display:block;font-family:var(--D);font-weight:800;font-size:13.5px;letter-spacing:-.01em}
-.rb span{display:block;font-size:9.5px;line-height:1.9;color:var(--dim);margin-top:4px}
+/* How to play. The first version was seven paragraphs of monospace over a live chart, and
+   the chart won. This one is opaque, so the words are readable, and it fits one screen. */
+.howto::before{background:radial-gradient(120% 90% at 50% 30%,rgba(6,8,28,.93),rgba(6,8,28,.985) 60%)}
+.pan.wide{width:min(760px,100%)}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:20px 0 9px;text-align:left}
+.card2{border:1px solid var(--edge);border-radius:14px;padding:12px;background:rgba(255,244,232,.04)}
+.art{height:58px;margin-bottom:9px;display:grid;place-items:center}
+.art svg{width:100%;height:100%}
+.ck{font-size:7.5px;letter-spacing:.2em;color:var(--dim)}
+.card2 b{display:block;font-family:var(--D);font-weight:800;font-size:13px;letter-spacing:-.01em;margin-top:4px}
+.card2 span{display:block;font-size:9px;line-height:1.75;color:var(--dim);margin-top:4px}
+
+.choice{border:1px solid rgba(34,230,160,.34);background:rgba(34,230,160,.07);border-radius:16px;
+  padding:15px 16px;margin:9px 0 16px;text-align:left}
+.choice b{display:block;font-family:var(--D);font-weight:800;font-size:19px;letter-spacing:-.02em;margin-top:4px}
+.choice span{display:block;font-size:9.5px;line-height:1.85;color:var(--dim);margin-top:5px;max-width:56ch}
+.choicebtns{display:flex;gap:8px;margin-top:11px}
+.fakebtn{font-family:var(--D);font-weight:800;font-size:12px;padding:8px 20px;border-radius:10px}
+.fakebtn.o{border:1px solid var(--edge);color:var(--dim)}
+.fakebtn.g{background:var(--bull);color:#04231A}
+
+@media (max-width:820px){
+  .cards{grid-template-columns:repeat(2,1fr)}
+}
+/* Two columns all the way down. The cards are diagrams with a line of text, so one column
+   on a phone was a 1,200px scroll for something that has to be read in one go. */
+@media (max-width:470px){
+  .cards{gap:6px}
+  .card2{padding:9px}
+  .art{height:42px;margin-bottom:6px}
+  .card2 b{font-size:12px}
+  .card2 span{font-size:8.5px;line-height:1.65}
+  .choice{padding:13px}
+  .choice b{font-size:17px}
+  .choice span{font-size:9px}
+}
 
 /* ── replay page ──────────────────────────────────────────────────────────── */
 .replay #game{position:absolute;inset:0}
