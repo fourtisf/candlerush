@@ -107,9 +107,13 @@ easier. It was invisible in the prototype because nothing ever left the browser.
 
 ## 6. Pausing spends the submission window
 
-The wall-clock check is `[80s, 300s]` from issue. A 90-second session therefore has about
-210 seconds of pause budget across its whole life, and a player who pauses to answer the
-door loses the session.
+The wall-clock check is now `[2s, 900s]` from issue, plus a floor derived from the tape
+itself: a run of N frames took at least N/60 seconds to produce, so anything submitted
+faster than its own length is rejected. That replaced a flat `[80s, 300s]`, which under
+levels rejected every short run as `TOO_FAST` and every deep one as `TOO_SLOW`.
+
+The ceiling still doubles as the pause budget: a fifteen-level run is about 495 seconds of
+play, leaving roughly 400 seconds of pausing across its whole life.
 
 The client currently auto-resumes with a warning when 30 seconds of budget remain. That is a
 guess. The alternatives are: no pause in ranked sessions; or a longer ceiling, which weakens

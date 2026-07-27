@@ -38,6 +38,26 @@ ok "built"
 say "Applying migrations"
 pnpm --filter @candle-rush/api exec prisma migrate deploy 2>&1 | tail -3
 
+# The one configuration value this script will touch, and only when it still holds the
+# number written for the old single 90-second session.
+#
+# A run is now a ladder of 25-second levels: an 80-second floor rejects every short run as
+# TOO_FAST and a 300-second ceiling rejects every deep one as TOO_SLOW, so a box that was
+# first deployed before levels credits nobody at all. Anything other than the exact legacy
+# pair is left alone — that is somebody's deliberate choice, not a leftover.
+say "Checking replay window"
+ENVF=apps/api/.env
+CUR_MIN=$(sed -n 's/^SESSION_MIN_ELAPSED_MS=//p' "$ENVF" | tail -1)
+CUR_MAX=$(sed -n 's/^SESSION_MAX_ELAPSED_MS=//p' "$ENVF" | tail -1)
+if [ "$CUR_MIN" = "80000" ] && [ "$CUR_MAX" = "300000" ]; then
+  cp -a "$ENVF" "$ENVF.bak.$(date +%Y%m%d%H%M%S)"
+  sed -i 's/^SESSION_MIN_ELAPSED_MS=80000$/SESSION_MIN_ELAPSED_MS=2000/;
+          s/^SESSION_MAX_ELAPSED_MS=300000$/SESSION_MAX_ELAPSED_MS=900000/' "$ENVF"
+  ok "replay window widened for levels (was 80s/300s, now 2s/900s; .env backed up)"
+else
+  ok "replay window ${CUR_MIN:-unset}/${CUR_MAX:-unset} — left as is"
+fi
+
 # If this deploy changed gameplay, ENGINE_VERSION must have been bumped with it — a tape
 # recorded against the old engine replays to garbage on the new one. Sessions still open
 # across the restart are then rejected on submit with ENGINE_VERSION_MISMATCH, which is the

@@ -1,6 +1,6 @@
 'use client';
 
-import { CHARS, MAPS, charById, mapById, type CharDef, type MapDef } from '@candle-rush/engine';
+import { CHARS, LEVEL, MAPS, charById, mapById, type CharDef, type MapDef } from '@candle-rush/engine';
 import { useEffect, useMemo, useState } from 'react';
 import { useAccount, type Account } from '../../lib/account';
 import { money, shortAddress, short } from '../../lib/format';
@@ -252,7 +252,7 @@ export function ReviveScreen({
           ONE TOP-UP PER SESSION
         </div>
         <div style={{ height: 18 }} />
-        <div className="k">P&amp;L ON THE TABLE</div>
+        <div className="k">SCORE ON THE TABLE</div>
         <div className="big">{money(pnl)}</div>
         <div style={{ height: 22 }} />
         <button className="cta g wide" onClick={onRevive}>
@@ -278,6 +278,7 @@ export function LevelScreen({
   candles,
   secondsLeft,
   onContinue,
+  onBack,
 }: {
   on: boolean;
   level: number;
@@ -285,39 +286,63 @@ export function LevelScreen({
   candles: number;
   secondsLeft: number;
   onContinue: () => void;
+  onBack: () => void;
 }) {
+  const seconds = Math.max(0, Math.ceil(secondsLeft));
+  // The panel continues by itself, so the bar has to read against the real break length
+  // rather than a copy of it — a divisor that drifts from LEVEL.breakSeconds would show a
+  // bar that empties early or never empties at all.
+  const pct = clamp01(secondsLeft / LEVEL.breakSeconds) * 100;
+  const last = level + 1 > LEVEL.maxLevels;
+
   return (
     <section className={`scr${on ? ' on' : ''}`}>
       <div className="pan">
-        <div className="eyebrow">LEVEL {level} CLEARED</div>
-        <div className="k">P&amp;L SO FAR</div>
-        <div className="big">{money(pnl)}</div>
-        <div className="stats">
-          <div className="st">
-            <div className="v">{candles}</div>
-            <div className="l">CANDLES</div>
+        <div className="lvlpan">
+          <div className="lvlbadge">
+            LEVEL {level}
+            <b>CLEARED</b>
           </div>
-          <div className="st">
-            <div className="v">{level + 1}</div>
-            <div className="l">NEXT LEVEL</div>
+          <div className="k">SCORE</div>
+          <div className="big">{money(pnl)}</div>
+          <div className="stats">
+            <div className="st">
+              <div className="v">{candles}</div>
+              <div className="l">CANDLES</div>
+            </div>
+            <div className="st">
+              <div className="v">{last ? '—' : level + 1}</div>
+              <div className="l">NEXT LEVEL</div>
+            </div>
+            <div className="st">
+              <div className="v gold">+{Math.round(level * 25)}%</div>
+              <div className="l">PAYOUT</div>
+            </div>
           </div>
-          <div className="st">
-            <div className="v">+{Math.round(level * 25)}%</div>
-            <div className="l">PAYOUT</div>
+          <div className="acts">
+            <button className="cta o" onClick={onBack}>
+              Back
+            </button>
+            <button className="cta g" onClick={onContinue}>
+              Continue
+            </button>
           </div>
-        </div>
-        <button className="cta g wide" onClick={onContinue}>
-          Continue
-        </button>
-        <div className="bar">
-          <i style={{ width: `${Math.max(0, (secondsLeft / 8) * 100)}%` }} />
-        </div>
-        <div className="keys">
-          FASTER TAPE, MORE HOLES, SHORTER TRENDS — STARTS IN {Math.max(0, Math.ceil(secondsLeft))}
+          <div className="actnote">
+            <span>BANK {money(pnl)} AND STOP</span>
+            <span>LEVEL {level + 1} IN {seconds}</span>
+          </div>
+          <div className="bar">
+            <i style={{ width: `${pct}%` }} />
+          </div>
+          <div className="keys">FASTER TAPE · MORE HOLES · SHORTER TRENDS</div>
         </div>
       </div>
     </section>
   );
+}
+
+function clamp01(n: number): number {
+  return n < 0 ? 0 : n > 1 ? 1 : n;
 }
 
 /* ── results ───────────────────────────────────────────────────────────────── */
@@ -361,7 +386,7 @@ export function OverScreen({
     <section className={`scr${on ? ' on' : ''}`}>
       <div className="pan">
         <div className="eyebrow">{result.title}</div>
-        <div className="k">SESSION P&amp;L</div>
+        <div className="k">SCORE</div>
         <div className="big">{submitting ? '…' : money(result.score)}</div>
         <div className="credit">
           {submitting

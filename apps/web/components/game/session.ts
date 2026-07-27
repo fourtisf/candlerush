@@ -70,7 +70,9 @@ export class LiveSession {
   ) {
     this.sim = new Sim(config, { events: true });
     this.sessionId = opts.sessionId;
-    this.maxElapsedMs = opts.maxElapsedMs ?? 300_000;
+    // Tracks SESSION_MAX_ELAPSED_MS on the server. It is only used to warn a paused
+    // player before their submission window closes, so being wrong here costs them a run.
+    this.maxElapsedMs = opts.maxElapsedMs ?? 900_000;
   }
 
   /** Show the tutorial prompts. First run only; purely cosmetic. */

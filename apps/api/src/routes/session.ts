@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { ENGINE_VERSION, type CharId, type MapId } from '@candle-rush/engine';
+import { ENGINE_VERSION, STEP, type CharId, type MapId } from '@candle-rush/engine';
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { prisma } from '../db.js';
@@ -19,6 +19,15 @@ import { ReplayTimeoutError, type AnyReplayPool } from '../services/replay-pool.
  * It tracks the submit ceiling for exactly that reason.
  */
 const openSessionWindowMs = (): number => env().SESSION_MAX_ELAPSED_MS;
+
+/**
+ * How far under its own simulated length a submission may sit before it is impossible.
+ *
+ * Slack for clock skew between the browser and this server, and for the seconds a session
+ * spends being issued and posted. It is not slack for "the client ran the sim fast" —
+ * nothing legitimate does that.
+ */
+const REAL_TIME_TOLERANCE = 0.85;
 
 export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
   return async (app) => {
@@ -161,7 +170,7 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
           return reply.code(422).send({ error: code, message, detail });
         };
 
-        // Too fast is impossible. Too slow means they were computing.
+        // Too slow means they were computing. Too fast is checked below, against the tape.
         if (elapsed < e.SESSION_MIN_ELAPSED_MS) {
           return reject('TOO_FAST', 'That session finished faster than it can be played.', `${elapsed}ms`);
         }
@@ -196,6 +205,23 @@ export function sessionRoutes(pool: AnyReplayPool): FastifyPluginAsync {
 
         if (!result.ok) {
           return reject(result.error ?? 'INVALID_REPLAY', 'That session did not validate.', result.errorDetail);
+        }
+
+        // The real speed check, now that we know how long the run actually was.
+        //
+        // The simulation is a fixed 60Hz and the client's loop can fall behind wall clock
+        // but never run ahead of it, so a tape of N frames took at least N/60 seconds to
+        // produce on a real machine. A tape computed offline arrives with an elapsed time
+        // that has nothing to do with its length, and that is what this catches. Deriving
+        // the floor from the tape rather than fixing it in config is also what lets a
+        // player who dies eight seconds into level one keep the money they earned.
+        const simulatedMs = result.frames * STEP * 1000;
+        if (elapsed < simulatedMs * REAL_TIME_TOLERANCE) {
+          return reject(
+            'TOO_FAST',
+            'That session finished faster than it can be played.',
+            `${elapsed}ms wall clock for ${Math.round(simulatedMs)}ms of play`,
+          );
         }
 
         const score = result.score;

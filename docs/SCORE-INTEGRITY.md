@@ -76,7 +76,7 @@ is the worst failure this system has. Bump it on any gameplay change.
 | | |
 |---|---|
 | session unknown, already settled, or another player's | 404 / 409 |
-| wall clock outside `[80s, 300s]` since issue | `TOO_FAST` / `TOO_SLOW` |
+| wall clock outside `[2s, 900s]` since issue, or shorter than the tape's own length | `TOO_FAST` / `TOO_SLOW` |
 | engine version mismatch | `ENGINE_VERSION_MISMATCH` |
 | frames non-monotonic, negative, fractional, or ≥ 5,760 | `FRAME_NOT_MONOTONIC` / `FRAME_OUT_OF_RANGE` |
 | more than 12 presses in any 60-frame window | `INPUT_RATE_EXCEEDED` |

@@ -11,15 +11,17 @@
  */
 
 /**
- * v2 replaced the single 90-second session with levels. Any tape recorded against v1 is
+ * v2 replaced the single 90-second session with levels. v3 made DECLINE meaningful on the
+ * level-clear panel — the "Back" button — which changes how an existing tape is
+ * interpreted, not just what it looks like. Any tape recorded against an older version is
  * meaningless here and is rejected on submit.
  *
- * Bump on ANY gameplay change: physics, generation, scoring, ordering of RNG draws.
- * Sessions record the version they were issued under and replays are rejected on
- * mismatch. A v1 tape replayed on a v2 engine produces garbage, and garbage that
- * silently becomes money is the worst failure this system has.
+ * Bump on ANY gameplay change: physics, generation, scoring, ordering of RNG draws, or
+ * the meaning of an input code. Sessions record the version they were issued under and
+ * replays are rejected on mismatch. An old tape replayed on a new engine produces
+ * garbage, and garbage that silently becomes money is the worst failure this system has.
  */
-export const ENGINE_VERSION = 2;
+export const ENGINE_VERSION = 3;
 
 /**
  * Fixed virtual viewport.
@@ -182,7 +184,7 @@ export const CHARS: readonly CharDef[] = [
   { id: 'fox', name: 'Fox', cost: 50000, col: '#FF9A4D', perk: 'Market speeds up 30% slower.' },
   { id: 'whale', name: 'Whale', cost: 120000, col: '#6FB4FF', perk: 'Double pip reach, +30% value.' },
   { id: 'ape', name: 'Ape', cost: 250000, col: '#C08CFF', perk: 'A third jump in the air.' },
-  { id: 'gem', name: 'Diamond', cost: 500000, col: '#8CF0FF', perk: 'Free stop loss every session.' },
+  { id: 'gem', name: 'Diamond', cost: 500000, col: '#8CF0FF', perk: 'Starts every session hedged.' },
 ] as const;
 
 export const MAPS: readonly MapDef[] = [

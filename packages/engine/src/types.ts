@@ -61,15 +61,20 @@ export interface Buffs {
   lev: number;
   /** Momentum seconds remaining — auto-flight above the tape. */
   bull: number;
-  /** Stop loss armed — one free save from a fall. */
+  /** Hedge active — one free save from a fall. */
   shield: boolean;
 }
 
 /* ── session ───────────────────────────────────────────────────────────────── */
 
 export type SimMode = 'attract' | 'running' | 'levelBreak' | 'reviveOffer' | 'ended';
-/** `cleared` means every level was survived — the top of the ladder. */
-export type EndReason = 'cleared' | 'liquidated' | 'declined';
+/**
+ * `cleared` means every level was survived — the top of the ladder.
+ * `cashedOut` means the player walked away from the level-clear panel alive, which is a
+ * different outcome from `declined` (turning down a top-up after being liquidated) and is
+ * kept separate so the results screen and the session row can tell them apart.
+ */
+export type EndReason = 'cleared' | 'liquidated' | 'declined' | 'cashedOut';
 
 /**
  * Everything needed to reproduce a session bit for bit.
@@ -95,6 +100,7 @@ export const IN = {
   JUMP_UP: 1,
   FLIP: 2,
   REVIVE: 3,
+  /** Turn down a top-up after a liquidation, or walk away from the level-clear panel. */
   DECLINE: 4,
   /** Dismiss the level-clear panel and start the next level. */
   CONTINUE: 5,

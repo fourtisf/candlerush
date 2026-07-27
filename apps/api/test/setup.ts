@@ -3,6 +3,7 @@ import {
   ENGINE_VERSION,
   IN,
   MAX_FRAMES,
+  STEP,
   Sim,
   runReplay,
   type InputEvent,
@@ -86,8 +87,12 @@ export async function backdate(sessionId: string, msAgo: number): Promise<void> 
  *
  * Built by driving a live sim so the tape stops the frame the run does — a tape with
  * inputs past the end is rejected, which is the point of that rule.
+ *
+ * `frames`/`durationMs` come back too because the submit route derives its "too fast"
+ * floor from the length of the tape: a fixture has to be backdated by at least as long as
+ * it claims to have taken, exactly like a real run.
  */
-export function tapeFor(cfg: SessionConfig): { inputs: InputEvent[]; score: number } {
+export function tapeFor(cfg: SessionConfig): { inputs: InputEvent[]; score: number; frames: number; durationMs: number } {
   const sim = new Sim(cfg);
   const inputs: InputEvent[] = [];
   for (let f = 0; f < MAX_FRAMES && sim.mode !== 'ended'; f++) {
@@ -103,7 +108,7 @@ export function tapeFor(cfg: SessionConfig): { inputs: InputEvent[]; score: numb
   const check = runReplay({ ...cfg, inputs });
   if (!check.ok) throw new Error(`fixture tape is invalid: ${check.error} ${check.errorDetail}`);
   if (check.score !== sim.score) throw new Error('fixture tape does not reproduce');
-  return { inputs, score: check.score };
+  return { inputs, score: check.score, frames: check.frames, durationMs: Math.ceil(check.frames * STEP * 1000) };
 }
 
 export const engineVersion = ENGINE_VERSION;

@@ -42,11 +42,17 @@ const schema = z.object({
 
   /** Replay guard rails. */
   /**
-   * A run is now a ladder of 25s levels rather than one 90s session, so the floor is one
-   * level and the ceiling is the whole ladder plus its between-level panels. The old
-   * 80s/300s pair would reject a one-level run outright and every deep run with it.
+   * The ceiling covers the whole ladder plus its between-level panels — the old 300s would
+   * reject every deep run.
+   *
+   * The floor is deliberately small. It is only a cheap pre-replay filter for a body that
+   * arrives the same second the session was issued; the real "too fast" test is
+   * frame-derived and lives in the submit route, because a run's honest duration is
+   * whatever the tape actually simulated. A flat floor cannot know that, and a flat floor
+   * high enough to be worth anything rejects the most ordinary outcome in the game: dying
+   * ten seconds into level one.
    */
-  SESSION_MIN_ELAPSED_MS: z.coerce.number().int().positive().default(18_000),
+  SESSION_MIN_ELAPSED_MS: z.coerce.number().int().positive().default(2_000),
   SESSION_MAX_ELAPSED_MS: z.coerce.number().int().positive().default(900_000),
   REPLAY_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
   REPLAY_WORKERS: z.coerce.number().int().positive().max(16).default(2),

@@ -68,7 +68,7 @@ export function Hud({
             html += `<div class="buff" style="color:var(--gold)"><i></i>LEVERAGE 2× ${s.buffs.lev.toFixed(1)}s</div>`;
           if (s.buffs.bull > 0)
             html += `<div class="buff" style="color:var(--bull)"><i></i>MOMENTUM ${s.buffs.bull.toFixed(1)}s</div>`;
-          if (s.buffs.shield) html += `<div class="buff" style="color:var(--ice)"><i></i>STOP LOSS ARMED</div>`;
+          if (s.buffs.shield) html += `<div class="buff" style="color:var(--ice)"><i></i>HEDGE ACTIVE</div>`;
           if (buffs.current.innerHTML !== html) buffs.current.innerHTML = html;
         }
         if (s.t - lastSample.current > 0.14) {
@@ -96,7 +96,7 @@ export function Hud({
     <div id="hud" className={visible ? 'on' : ''}>
       <div className="top">
         <div>
-          <div className="k">SESSION P&amp;L</div>
+          <div className="k">SCORE</div>
           <div className="pnl" ref={pnl}>
             $0
           </div>

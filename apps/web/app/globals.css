@@ -164,3 +164,31 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
 
 /* The level counter sits where "CLOSE IN" used to, above the level clock. */
 .k.lvl{color:var(--gold);letter-spacing:.26em}
+
+/* ── level-clear panel ─────────────────────────────────────────────────────── */
+/* The one screen that interrupts a live run, so unlike the menus it gets a real card:
+   the chart is still visible behind it and flat centred text washed straight out. */
+.lvlpan{position:relative;padding:26px 22px 22px;border-radius:22px;
+  background:linear-gradient(180deg,rgba(17,14,42,.94),rgba(8,6,22,.97));
+  border:1px solid var(--edge);box-shadow:0 34px 90px -28px rgba(0,0,0,.92),inset 0 1px 0 rgba(255,244,232,.06)}
+.lvlpan::before{content:'';position:absolute;left:0;right:0;top:0;height:1px;border-radius:22px 22px 0 0;
+  background:linear-gradient(90deg,transparent,var(--bull),transparent)}
+.lvlbadge{display:inline-flex;align-items:center;gap:7px;margin-bottom:16px;padding:7px 15px;border-radius:99px;
+  font-size:8.5px;letter-spacing:.28em;color:var(--gold);
+  border:1px solid rgba(255,206,92,.36);background:rgba(255,206,92,.09)}
+.lvlbadge b{font-weight:400;color:var(--bull)}
+.lvlpan .stats{margin:20px 0 18px}
+.st .v.gold{color:var(--gold)}
+
+/* Continue is the default and reads that way; Back is present and legible rather than
+   hidden behind a ghost link, because walking away with the money is a real choice and a
+   player who cannot find it just watches the timer continue for them. */
+.acts{display:grid;grid-template-columns:1fr 1.35fr;gap:9px}
+.acts .cta{padding:15px 12px;font-size:15px;width:100%}
+.cta.o{background:transparent;color:var(--dim);border:1px solid var(--edge);box-shadow:none}
+.cta.o:hover{color:var(--ink);border-color:rgba(255,244,232,.32);background:rgba(255,244,232,.05)}
+.actnote{display:grid;grid-template-columns:1fr 1.35fr;gap:9px;margin-top:9px;
+  font-size:7.5px;letter-spacing:.16em;color:var(--faint)}
+.actnote span:last-child{color:var(--bull)}
+.lvlpan .bar{margin-top:14px}
+.lvlpan .keys{margin-top:12px;line-height:1.9}

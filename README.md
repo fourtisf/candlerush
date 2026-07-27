@@ -1,8 +1,8 @@
 # Candle Rush
 
-A ninety-second endless runner where the terrain is a candlestick chart. Ride the candles,
-flip your position when the tape turns, and bank whatever P&L is on the table when the
-closing bell rings.
+A levelled endless runner where the terrain is a candlestick chart. Ride the candles, flip
+your position when the tape turns, and decide after every level whether to bank the score
+or push into a faster one.
 
 This repository is the production build. The original single-file prototype — which is the
 design spec, and still playable on its own — lives in [`prototype/index.html`](prototype/index.html).
@@ -28,7 +28,7 @@ is the same chart everywhere.
 
 It is verified rather than asserted — 50 tapes generated in headless Chromium replay in Node
 to identical scores and identical state digests, and a full browser run signs in with a
-wallet, plays ninety seconds and lands on a server-computed score that matches its own.
+wallet, plays a session and lands on a server-computed score that matches its own.
 
 Read [docs/SCORE-INTEGRITY.md](docs/SCORE-INTEGRITY.md) before changing anything in
 `packages/engine`. It also says plainly what this design does *not* stop.
@@ -101,12 +101,17 @@ the ones that need a flip are marked with a pulsing `FLIP` arrow. The candle you
 standing on never drops out from under you, so a mistimed flip costs you the tape ahead, not
 your footing.
 
-**The clock.** Ninety seconds. At twenty seconds remaining the closing bell doubles all P&L
-and speeds the tape up. Land on a candle's leading edge for a perfect bounce; chain landings
-for a streak multiplier up to ×10, halved when you stumble.
+**The clock.** Twenty-five seconds a level, fifteen levels. At five seconds remaining the
+closing bell doubles all P&L and speeds the tape up. Land on a candle's leading edge for a
+perfect bounce; chain landings for a streak multiplier up to ×10, halved when you stumble.
+
+**The ladder.** Clearing a level puts a panel up: **Continue** into the next one, or
+**Back** to close the session and keep the score. Every level starts faster, drops more
+holes in the tape and turns the trend sooner, and pays 25% more per level to match. Leaving
+it alone continues for you when the eight-second timer runs out.
 
 **Liquidation.** Fall off the chart and you are out. Once per session, after twelve candles,
-you can add margin: a fresh doji runway, a free stop loss, and your P&L intact.
+you can add margin: a fresh doji runway, a free hedge, and your score intact.
 
 ## Contributing rules that are not style preferences
 

@@ -126,12 +126,12 @@ export function Game() {
             break;
           case 'power':
             showToast(
-              e.kind === 'lev' ? 'LEVERAGE 2×' : e.kind === 'shield' ? 'STOP LOSS ARMED' : 'MOMENTUM',
+              e.kind === 'lev' ? 'LEVERAGE 2×' : e.kind === 'shield' ? 'HEDGE ACTIVE' : 'MOMENTUM',
               e.kind === 'lev' ? '#FFCE5C' : e.kind === 'shield' ? '#6FB4FF' : '#22E6A0',
             );
             break;
           case 'shield':
-            showToast('STOP LOSS TRIGGERED', '#6FB4FF');
+            showToast('HEDGE SAVED YOU', '#6FB4FF');
             break;
           case 'revive':
             showToast('BACK IN', '#22E6A0');
@@ -156,9 +156,13 @@ export function Game() {
   const submit = useCallback(
     async (session: LiveSession) => {
       const sim = session.sim;
-      const cleared = sim.endReason === 'cleared';
       const base: Result = {
-        title: cleared ? 'ALL LEVELS CLEARED' : 'LIQUIDATED',
+        title:
+          sim.endReason === 'cleared'
+            ? 'ALL LEVELS CLEARED'
+            : sim.endReason === 'cashedOut'
+              ? `CLOSED OUT AFTER LEVEL ${sim.level}`
+              : 'LIQUIDATED',
         level: sim.level,
         score: sim.score,
         credited: sim.score,
@@ -400,6 +404,7 @@ export function Game() {
         candles={levelClear?.candles ?? 0}
         secondsLeft={levelClear?.left ?? 0}
         onContinue={() => sessionRef.current?.press(IN.CONTINUE)}
+        onBack={() => sessionRef.current?.press(IN.DECLINE)}
       />
       <ReviveScreen
         on={!!reviving}

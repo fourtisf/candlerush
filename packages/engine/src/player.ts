@@ -48,7 +48,7 @@ export function findLanding(
   return land;
 }
 
-/** The nearest solid candle at or ahead of the player — where a stop loss puts you back. */
+/** The nearest solid candle at or ahead of the player — where a hedge puts you back. */
 export function findRecovery(candles: readonly Candle[], p: PlayerState): Candle | null {
   const c = candles.find((k) => isSolid(k, p.short, p.standIdx) && k.x > p.x - 40);
   return c ?? candles[candles.length - 1] ?? null;

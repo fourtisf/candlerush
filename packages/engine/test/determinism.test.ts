@@ -7,6 +7,7 @@ import {
   Sim,
   digest,
   runReplay,
+  type InputEvent,
   type SessionConfig,
 } from '../src/index.js';
 import { playBot } from './bot.js';
@@ -162,6 +163,59 @@ describe('determinism', () => {
     for (let i = 0; i < LEVEL.breakSeconds * 60; i++) sim.step();
     expect(sim.mode).toBe('running');
     expect(sim.level).toBe(2);
+  });
+
+  it('Back on the level panel ends the run and keeps every dollar earned', () => {
+    const sim = new Sim(cfg({ seed: 8, mapId: 'dawn' }));
+    drive(sim, LEVEL.seconds * 60);
+    expect(sim.mode).toBe('levelBreak');
+    const banked = sim.score;
+    expect(banked, 'the driver cleared a level without scoring — nothing to bank').toBeGreaterThan(0);
+
+    sim.applyInput(IN.DECLINE);
+    expect(sim.mode).toBe('ended');
+    // Distinct from `declined`, which is turning down a top-up after being liquidated.
+    expect(sim.endReason).toBe('cashedOut');
+    expect(sim.score).toBe(banked);
+    expect(sim.p.alive).toBe(true);
+
+    // Whatever the server replays has to reach the same number, or "Back" would be a
+    // button that pays out differently depending on who added it up.
+    const base = cfg({ seed: 8, mapId: 'dawn' });
+    const tape: InputEvent[] = [];
+    const rec = new Sim(base);
+    for (let f = 0; f < LEVEL.seconds * 60 && rec.mode !== 'ended'; f++) {
+      if (f >= 40 && (f - 40) % 37 === 0) {
+        tape.push([f, IN.JUMP_DOWN]);
+        rec.applyInput(IN.JUMP_DOWN);
+      } else if (f >= 49 && (f - 49) % 37 === 0) {
+        tape.push([f, IN.JUMP_UP]);
+        rec.applyInput(IN.JUMP_UP);
+      }
+      rec.step();
+    }
+    tape.push([rec.frame, IN.DECLINE]);
+    rec.applyInput(IN.DECLINE);
+    rec.step(); // the input lands at the head of a frame, and that frame still ticks
+    const replayed = runReplay({ ...base, inputs: tape });
+    expect(replayed.ok, `${replayed.error} ${replayed.errorDetail}`).toBe(true);
+    expect(replayed.score).toBe(rec.score);
+    expect(replayed.endReason).toBe('cashedOut');
+    expect(replayed.digest).toBe(digest(rec));
+  });
+
+  it('Back does nothing while a level is actually running', () => {
+    // DECLINE is live in two modes now. If it leaked into `running` a stray press would
+    // end somebody's session mid-jump.
+    const a = new Sim(cfg({ seed: 12 }));
+    const b = new Sim(cfg({ seed: 12 }));
+    for (let i = 0; i < 300; i++) {
+      a.applyInput(IN.DECLINE);
+      a.step();
+      b.step();
+    }
+    expect(a.mode).not.toBe('ended');
+    expect(digest(a)).toBe(digest(b));
   });
 
   it('CONTINUE does nothing outside the level panel', () => {

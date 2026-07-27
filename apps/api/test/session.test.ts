@@ -1,4 +1,4 @@
-import { ENGINE_VERSION, IN, MAX_FRAMES, type InputEvent } from '@candle-rush/engine';
+import { ENGINE_VERSION, IN, MAX_FRAMES, STEP, runReplay, type InputEvent } from '@candle-rush/engine';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../src/db.js';
@@ -86,9 +86,11 @@ describe('POST /session/submit', () => {
   async function playable(mapId = 'dawn', charId = 'bull') {
     const made = await makePlayer(app, { unlockedMaps: ['dawn', 'night'], unlockedChars: ['bull'] });
     const { body } = await startSession(made.auth, mapId, charId);
-    await backdate(body.sessionId, env().SESSION_MIN_ELAPSED_MS + 5_000);
-    const { inputs, score } = tapeFor(body.config);
-    return { ...made, sessionId: body.sessionId, config: body.config, inputs, score };
+    const tape = tapeFor(body.config);
+    // Aged by however long the tape says it took, because that is what the route checks
+    // against. A fixed number here would be a fixture that could not have been played.
+    await backdate(body.sessionId, tape.durationMs + 5_000);
+    return { ...made, sessionId: body.sessionId, config: body.config, inputs: tape.inputs, score: tape.score };
   }
 
   it('scores the run itself and ignores whatever the client claims', async () => {
@@ -169,6 +171,53 @@ describe('POST /session/submit', () => {
     expect(row.status).toBe('REJECTED');
   });
 
+  it('credits a run that ended well inside the old flat floor', async () => {
+    // The "too fast" floor is derived from the tape, not fixed in config. A flat floor set
+    // to one level's length rejects every run that ends early — the most ordinary outcome
+    // in the game — and keeps the money the player earned before they fell.
+    const made = await makePlayer(app);
+    const { body } = await startSession(made.auth);
+    // A seed and market picked for how quickly they end: with no input at all the player
+    // falls into a hole and the revive offer times out, a bit over fifteen seconds in.
+    // Under the old eighteen-second floor this exact run was rejected as impossible.
+    await prisma.session.update({ where: { id: body.sessionId }, data: { seed: 228, mapId: 'gold' } });
+    const cfg = { ...body.config, seed: 228, mapId: 'gold' };
+    const probe = runReplay({ ...cfg, inputs: [] });
+    const durationMs = Math.ceil(probe.frames * STEP * 1000);
+    expect(durationMs, 'fixture no longer ends early — pick another seed').toBeLessThan(18_000);
+    expect(probe.score).toBeGreaterThan(0);
+
+    await backdate(body.sessionId, durationMs + 2_000);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/session/submit',
+      headers: made.auth,
+      payload: { sessionId: body.sessionId, inputs: [] },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().credited).toBe(probe.score);
+    const row = await prisma.session.findUniqueOrThrow({ where: { id: body.sessionId } });
+    expect(row.status).toBe('SUBMITTED');
+  });
+
+  it('still refuses a tape that claims more play than the clock allows', async () => {
+    // The other half of the same rule: a long tape submitted seconds after it was issued
+    // was computed, not played.
+    const made = await makePlayer(app);
+    const { body } = await startSession(made.auth);
+    const { inputs, durationMs } = tapeFor(body.config);
+    expect(durationMs).toBeGreaterThan(30_000);
+    await backdate(body.sessionId, 10_000);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/session/submit',
+      headers: made.auth,
+      payload: { sessionId: body.sessionId, inputs },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toBe('TOO_FAST');
+  });
+
   it('refuses a session that sat around long enough to be computed', async () => {
     const made = await makePlayer(app);
     const { body } = await startSession(made.auth);
@@ -238,7 +287,7 @@ describe('POST /session/submit', () => {
   it('flags frame-perfect input for review without banning', async () => {
     const made = await makePlayer(app);
     const { body } = await startSession(made.auth);
-    await backdate(body.sessionId, env().SESSION_MIN_ELAPSED_MS + 5_000);
+    await backdate(body.sessionId, MAX_FRAMES * 17 + 5_000);
     const robotic: InputEvent[] = [];
     for (let f = 60; f < 1200; f += 60) robotic.push([f, IN.JUMP_DOWN]);
     const res = await app.inject({
@@ -268,8 +317,8 @@ describe('POST /session/submit', () => {
 
     const started = await startSession(made.auth);
     expect(started.body.config.handicap).toBe(0.5); // issued with the session, not held by the client
-    await backdate(started.body.sessionId, env().SESSION_MIN_ELAPSED_MS + 5_000);
-    const { inputs } = tapeFor(started.body.config);
+    const { inputs, durationMs } = tapeFor(started.body.config);
+    await backdate(started.body.sessionId, durationMs + 5_000);
     const res = await app.inject({
       method: 'POST',
       url: '/session/submit',

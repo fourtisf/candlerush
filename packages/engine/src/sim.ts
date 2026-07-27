@@ -151,7 +151,12 @@ export class Sim {
         if (this.mode === 'reviveOffer') this.revive();
         break;
       case IN.DECLINE:
+        // Two different walk-aways share one code. From the revive offer the player is
+        // already dead and is turning down a top-up; from the level-clear panel they are
+        // alive and banking what they have. Either way the P&L they earned is the score —
+        // there is no forfeit path, so "Back" can never cost a player money.
         if (this.mode === 'reviveOffer') this.end('declined');
+        else if (this.mode === 'levelBreak') this.end('cashedOut');
         break;
       case IN.CONTINUE:
         if (this.mode === 'levelBreak') this.startLevel(this.level + 1);
