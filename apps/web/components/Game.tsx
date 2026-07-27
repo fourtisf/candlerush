@@ -103,11 +103,10 @@ export function Game() {
     if (screen !== 'playing') attractRef.current?.restart(account.map, account.char);
   }, [account.map, account.char, screen]);
 
-  // `named`, not `name`: a wallet sign-in arrives with a server-assigned placeholder, and
-  // skipping the screen on that would mean the player never gets to choose one.
-  useEffect(() => {
-    if (account.ready && screen === 'profile' && account.named) setScreen('hub');
-  }, [account.ready, account.named, screen]);
+  // The opening screen is the opening screen every visit, not only the first. It used to
+  // be skipped for anyone who already had a name, which meant the site's actual front page
+  // — mark, tagline, contract address — was something a player saw once and never again.
+  // It greets a returning player by name instead of asking for one; see ProfileScreen.
 
   /* ── session lifecycle ─────────────────────────────────────────────────── */
 
@@ -412,16 +411,14 @@ export function Game() {
   const inRun = screen === 'playing' && !reviving && !levelClear;
 
   /**
-   * Which of the two opening screens a reload lands on, derived rather than corrected.
+   * The opening screen waits until the account is known.
    *
-   * The effect above converges `screen` to 'hub' for a player who already has a name, but
-   * an effect runs after the browser has had its chance to paint — so a reload showed the
-   * empty TRADER NAME box for a frame before jumping to the balance, which reads as having
-   * been signed out. Deciding it here means that frame never exists.
+   * `ready` waits on /me — an httpOnly cookie is invisible from here — and the screen says
+   * two different things depending on the answer: a name to fill in, or a name to be
+   * greeted by. Rendering before it lands means showing one and then swapping it for the
+   * other, which is the flicker this avoids.
    */
-  const settled = screen === 'profile' && account.ready;
-  const atProfile = settled && !account.named;
-  const atHub = screen === 'hub' || (settled && account.named);
+  const atProfile = screen === 'profile' && account.ready;
 
   return (
     <div id="stage" className={screen === 'playing' ? 'playing' : ''}>
@@ -451,7 +448,7 @@ export function Game() {
           a blank hold. */}
       <section className={`scr boot${account.ready ? '' : ' on'}`}>
         <div className="pan">
-          <Wordmark className="logo sm" />
+          <Wordmark className="logo" />
         </div>
       </section>
 
@@ -460,7 +457,7 @@ export function Game() {
           first-time visitor from someone who has played all week. */}
       <ProfileScreen on={atProfile} onEnter={() => setScreen('hub')} onError={setError} />
       <HubScreen
-        on={atHub}
+        on={screen === 'hub'}
         starting={starting}
         onPlay={() => void play()}
         onChars={() => setScreen('chars')}

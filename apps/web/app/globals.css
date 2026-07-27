@@ -211,19 +211,26 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
    is sized by width and never by font-size. */
 .logo{width:min(100%,420px);height:auto;display:block;margin:2px auto 0;
   filter:drop-shadow(0 14px 34px rgba(0,0,0,.55))}
-/* The hub carries the same mark, small enough that the balance is still the first thing
-   read. The hub is the busiest screen in the game, so this buys its room in height, not
-   in prominence. */
-.logo.sm{width:min(100%,238px);margin:0 auto 13px;opacity:.94}
 
 /* The mark alone, while the client works out whose account this is. It breathes so a slow
    answer reads as waiting rather than as stuck, and it is the same size the hub shows it
    at — a splash-sized one crossfading into a small one reads as two logos at once. It also
    leaves quickly: the screen it hands over to is usually already there. */
-/* No crossfade on the way out. The two panels centre their marks at different heights, so
-   fading one into the other shows the logo twice at once; cutting it means the hub simply
-   fades up in its place. */
+/* No crossfade on the way out. The panel it hands over to centres its mark at a different
+   height, so fading one into the other shows the logo twice at once; cutting it means the
+   next screen simply fades up in its place. */
 .scr.boot{transition:none}
+
+/* Where the name field goes for somebody who already has one. Same height and the same
+   corner radius as the input it replaces, so the panel does not jump between a first
+   visit and a tenth. */
+.back{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;
+  background:rgba(255,206,92,.07);border:1px solid rgba(255,206,92,.28);border-radius:13px;
+  padding:12px 17px}
+.back .l1{font-size:8px;letter-spacing:.28em;color:var(--gold)}
+.back b{font-family:var(--D);font-weight:800;font-size:22px;letter-spacing:-.02em;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.back .l2{font-size:8.5px;letter-spacing:.18em;color:var(--dim)}
 .scr.boot .logo{animation:boot 1.7s ease-in-out infinite}
 @keyframes boot{0%,100%{opacity:.55}50%{opacity:1}}
 
@@ -241,10 +248,11 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
   .scr{padding:12px;align-items:start}
   .pan{padding:8px 0}
   .logo{width:min(100%,290px)}
-  .logo.sm{width:min(100%,178px);margin-bottom:8px}
   .eyebrow{margin-bottom:8px}
   .lede{margin:9px auto 13px;font-size:9.5px;line-height:1.7;max-width:270px}
   .ca{margin-bottom:11px;padding:7px 10px 7px 11px}
+  .back{padding:9px 14px}
+  .back b{font-size:18px}
   input[type=text]{padding:11px 14px;font-size:15px}
   .wal{padding:10px 13px;margin-top:8px}
   .cta{padding:12px 26px;font-size:14px}
@@ -280,7 +288,6 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
   .pick{grid-template-columns:1fr}
   .scr{padding:20px 16px calc(20px + env(safe-area-inset-bottom))}
   .logo{width:min(100%,330px)}
-  .logo.sm{width:min(100%,206px)}
   .ca .v{font-size:10px;letter-spacing:.06em}
   /* The sim is a fixed 1280x720 and the canvas letterboxes it, so upright the whole world
      is a thin horizontal stripe across the middle of the screen — which reads as a broken

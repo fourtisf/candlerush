@@ -33,6 +33,7 @@ export function ProfileScreen({ on, onEnter, onError }: { on: boolean; onEnter: 
   const [value, setValue] = useState(account.name);
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
   // Only adopt a name the player actually chose. A server placeholder in the box would
   // read as "already filled in" and put them straight back where they started.
@@ -40,6 +41,14 @@ export function ProfileScreen({ on, onEnter, onError }: { on: boolean; onEnter: 
     if (account.named) setValue(account.name);
   }, [account.name, account.named]);
 
+  /**
+   * Somebody who has played before, arriving again.
+   *
+   * This screen is the front door on every visit, not only the first, so it has to have
+   * something to say to a returning player other than an empty name box. It greets them
+   * and lets them straight in; the box is still one tap away under the name.
+   */
+  const returning = account.named && !renaming;
   const problem = nameProblem(value);
 
   const submit = async () => {
@@ -49,7 +58,10 @@ export function ProfileScreen({ on, onEnter, onError }: { on: boolean; onEnter: 
     try {
       // Only move on if the name stuck. A failed save used to drop the player into the hub
       // with no name on the account at all.
-      if (await setName(value)) onEnter();
+      if (await setName(value)) {
+        setRenaming(false);
+        onEnter();
+      }
     } finally {
       setSaving(false);
     }
@@ -62,43 +74,78 @@ export function ProfileScreen({ on, onEnter, onError }: { on: boolean; onEnter: 
         <Wordmark className="logo" />
         <p className="lede">Ride the candles, bank the close.</p>
         <ContractAddress />
-        <input
-          type="text"
-          maxLength={NAME_MAX}
-          placeholder="TRADER NAME"
-          autoComplete="off"
-          spellCheck={false}
-          required
-          aria-invalid={touched && !!problem}
-          aria-describedby="namehint"
-          value={value}
-          onChange={(e) => {
-            const next = e.target.value.toUpperCase();
-            setValue(next);
-            // Flag a bad character the moment it is typed, but do not nag an empty field
-            // somebody has not reached yet.
-            if (next.trim()) setTouched(true);
-          }}
-          onBlur={() => setTouched(true)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void submit();
-          }}
-        />
-        <div id="namehint" className={`hint${touched && problem ? ' bad' : ''}`}>
-          {touched && problem ? problem : 'THIS IS THE NAME ON THE LEADERBOARD'}
-        </div>
+        {returning ? (
+          <div className="back">
+            <span className="l1">WELCOME BACK</span>
+            <b>{account.name}</b>
+            <span className="l2">
+              {money(account.balance)} · {account.runs} {account.runs === 1 ? 'SESSION' : 'SESSIONS'}
+            </span>
+          </div>
+        ) : (
+          <>
+            <input
+              type="text"
+              maxLength={NAME_MAX}
+              placeholder="TRADER NAME"
+              autoComplete="off"
+              spellCheck={false}
+              required
+              autoFocus={renaming}
+              aria-invalid={touched && !!problem}
+              aria-describedby="namehint"
+              value={value}
+              onChange={(e) => {
+                const next = e.target.value.toUpperCase();
+                setValue(next);
+                // Flag a bad character the moment it is typed, but do not nag an empty
+                // field somebody has not reached yet.
+                if (next.trim()) setTouched(true);
+              }}
+              onBlur={() => setTouched(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void submit();
+                if (e.key === 'Escape' && account.named) {
+                  setValue(account.name);
+                  setRenaming(false);
+                }
+              }}
+            />
+            <div id="namehint" className={`hint${touched && problem ? ' bad' : ''}`}>
+              {touched && problem ? problem : 'THIS IS THE NAME ON THE LEADERBOARD'}
+            </div>
+          </>
+        )}
         <WalletButton onError={onError} />
         <div style={{ height: 14 }} />
         {/* Dimmed but never `disabled`. A disabled button swallows the click, so pressing
             it while the field is empty would say nothing at all — the player is left with
             a grey button and no reason. This one answers when pressed. */}
-        <button
-          className={`cta wide${problem ? ' off' : ''}${saving || busy ? ' busy' : ''}`}
-          aria-disabled={!!problem || saving || busy}
-          onClick={() => void submit()}
-        >
-          {saving ? 'Opening…' : 'Open account'}
-        </button>
+        {returning ? (
+          <button className={`cta g wide${busy ? ' busy' : ''}`} onClick={onEnter}>
+            Enter the floor
+          </button>
+        ) : (
+          <button
+            className={`cta wide${problem ? ' off' : ''}${saving || busy ? ' busy' : ''}`}
+            aria-disabled={!!problem || saving || busy}
+            onClick={() => void submit()}
+          >
+            {saving ? 'Opening…' : account.named ? 'Save name' : 'Open account'}
+          </button>
+        )}
+        {account.named && (
+          <button
+            className="ghost"
+            onClick={() => {
+              setValue(account.name);
+              setTouched(false);
+              setRenaming(returning);
+            }}
+          >
+            {returning ? 'NOT YOU? CHANGE THE NAME' : 'KEEP THE NAME I HAVE'}
+          </button>
+        )}
         <div className="keys">A WALLET IS OPTIONAL WHILE YOU PLAY LOCALLY</div>
       </div>
     </section>
@@ -145,13 +192,10 @@ export function HubScreen({
   return (
     <section className={`scr${on ? ' on' : ''}`}>
       <div className="pan">
-        {/* The front door, on every visit after the first.
-            Once an account is named this screen is what candlerush.fun opens to, and it
-            used to open to a bare number: no wordmark, no contract address, nothing
-            saying which site this is. Refreshing after a session looked like landing
-            somewhere else entirely. The mark and the CA belong on whatever screen is
-            first, not only on the one a player sees once. */}
-        <Wordmark className="logo sm" />
+        {/* No wordmark here — the screen immediately before this one is the front page and
+            it is all wordmark. The address stays: it is a chip rather than a brand
+            statement, and it means the CA is one tap from wherever a player happens to
+            be rather than only from the way in. */}
         <ContractAddress />
         <div className="k">ACCOUNT BALANCE</div>
         <div className="bal">{money(account.balance)}</div>

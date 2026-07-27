@@ -114,10 +114,9 @@ async function main(): Promise<void> {
   }
 
   /* ── coming back ───────────────────────────────────────────────────────────
-   * What a returning player actually does: reload the page. This has to land on the hub
-   * and it has to still look like Candle Rush — a reload that shows an empty TRADER NAME
-   * box, even for a frame, reads as having been signed out, and a hub with no mark and no
-   * contract address on it does not read as the front page of anything. */
+   * What a returning player actually does: reload the page. Every visit opens on the
+   * front page — mark, tagline, contract address — and it must recognise somebody who
+   * has played before rather than asking them to type their name again. */
   const seen = new Set<string>();
   await page.reload({ waitUntil: 'commit' });
   const until = Date.now() + 8_000;
@@ -130,23 +129,37 @@ async function main(): Promise<void> {
           .map((s) =>
             s.classList.contains('boot')
               ? 'boot'
-              : s.querySelector('input[placeholder="TRADER NAME"]')
-                ? 'naming'
-                : s.querySelector('.bal')
-                  ? 'hub'
-                  : 'other',
+              : s.querySelector('.back')
+                ? 'front page, greeted'
+                : s.querySelector('input[placeholder="TRADER NAME"]')
+                  ? 'ASKED TO TYPE A NAME'
+                  : s.querySelector('.bal')
+                    ? 'hub'
+                    : 'other',
           )
           .join('+');
       }),
     );
-    if (seen.has('hub')) break;
+    if (seen.has('front page, greeted')) break;
   }
   const reloadPath = [...seen].join(' → ');
-  const brandedHub = await page.evaluate(() => ({
+  const front = await page.evaluate(() => ({
     logo: !!document.querySelector('.scr.on .logo'),
     ca: (document.querySelector('.scr.on .ca .v')?.textContent ?? '').trim(),
+    greeting: (document.querySelector('.scr.on .back b')?.textContent ?? '').trim(),
   }));
   await page.screenshot({ path: `${SHOTS}/5-reload.png` });
+
+  // And one tap from there is the hub, with the balance the run just earned.
+  let backInside = false;
+  try {
+    await page.getByRole('button', { name: /Enter the floor/ }).click({ timeout: 4_000 });
+    await page.waitForSelector('.scr.on .bal', { timeout: 4_000 });
+    backInside = true;
+  } catch {
+    backInside = false;
+  }
+  await page.screenshot({ path: `${SHOTS}/6-hub.png` });
 
   await browser.close();
 
@@ -164,9 +177,10 @@ async function main(): Promise<void> {
     ['level clock is running down', clockSeconds > 0 && clockSeconds <= 25, hud.clock],
     ['HUD shows a level', /LEVEL \d+/.test(hud.level), hud.level],
     ['the level-clear panel appears', sawLevelPanel, sawLevelPanel ? 'shown' : 'never reached a level end'],
-    ['a reload lands on the hub', seen.has('hub'), reloadPath],
-    ['a reload never flashes the naming screen', !seen.has('naming'), reloadPath],
-    ['the hub carries the mark and the CA', brandedHub.logo && !!brandedHub.ca, `logo ${brandedHub.logo} · CA ${brandedHub.ca || 'missing'}`],
+    ['a reload opens on the front page', seen.has('front page, greeted'), reloadPath],
+    ['a returning player is greeted, not asked', !seen.has('ASKED TO TYPE A NAME'), front.greeting || 'no greeting'],
+    ['the front page carries the mark and the CA', front.logo && !!front.ca, `logo ${front.logo} · CA ${front.ca || 'missing'}`],
+    ['one tap from there is the hub', backInside, backInside ? 'entered' : 'never reached the balance'],
     ['no page or console errors', problems.length === 0, problems.join(' | ') || 'clean'],
   ];
 
