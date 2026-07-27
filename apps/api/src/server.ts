@@ -14,9 +14,11 @@ import { prisma } from './db.js';
 import { corsOrigins, env } from './env.js';
 import { authPlugin } from './plugins/auth.js';
 import { NS, redis } from './redis.js';
+import { adminRoutes } from './routes/admin.js';
 import { authRoutes } from './routes/auth.js';
 import { leaderboardRoutes } from './routes/leaderboard.js';
 import { meRoutes } from './routes/me.js';
+import { replayRoutes } from './routes/replay.js';
 import { sessionRoutes } from './routes/session.js';
 import { shopRoutes } from './routes/shop.js';
 import { createReplayPool, type AnyReplayPool } from './services/replay-pool.js';
@@ -85,6 +87,8 @@ export async function buildServer(pool: AnyReplayPool = createReplayPool()): Pro
   await app.register(sessionRoutes(pool));
   await app.register(shopRoutes);
   await app.register(leaderboardRoutes);
+  await app.register(replayRoutes);
+  await app.register(adminRoutes);
 
   void jsonSchemaTransform; // kept for when OpenAPI docs are wired up
 

@@ -51,6 +51,13 @@ if [ -f "$WEBENV" ]; then
   fi
 fi
 
+# Deployed before /admin/stats existed, so there is no token and the funnel cannot be read
+# — which is the state this box was in while it rejected every run for days.
+if [ -f apps/api/.env ] && ! grep -q '^ADMIN_TOKEN=' apps/api/.env; then
+  printf 'ADMIN_TOKEN=%s\n' "$(openssl rand -hex 24)" >> apps/api/.env
+  ok "minted an ADMIN_TOKEN — deploy/watch.sh can now read the funnel"
+fi
+
 say "Installing and building"
 pnpm install --frozen-lockfile 2>&1 | tail -3
 pnpm --filter @candle-rush/engine build
@@ -62,24 +69,46 @@ ok "built"
 say "Applying migrations"
 pnpm --filter @candle-rush/api exec prisma migrate deploy 2>&1 | tail -3
 
-# The one configuration value this script will touch, and only when it still holds the
-# number written for the old single 90-second session.
+# The one configuration value this script will touch, and only when it holds a number
+# written for a shorter game than the one now installed.
 #
-# A run is now a ladder of 25-second levels: an 80-second floor rejects every short run as
-# TOO_FAST and a 300-second ceiling rejects every deep one as TOO_SLOW, so a box that was
-# first deployed before levels credits nobody at all. Anything other than the exact legacy
-# pair is left alone — that is somebody's deliberate choice, not a leftover.
+# This has bitten twice. The original 80s/300s pair was written for a single 90-second
+# session: under levels it rejected every short run as TOO_FAST and every deep one as
+# TOO_SLOW, and the box credited nobody for days without saying so. The 900s ceiling that
+# replaced it was written for a fifteen-level ladder; thirty levels is 990 seconds of play,
+# so it would have done the same thing again to exactly the players who earned the most.
+#
+# Anything that is not one of those two known-stale values is left alone — that is
+# somebody's deliberate choice, not a leftover.
 say "Checking replay window"
 ENVF=apps/api/.env
 CUR_MIN=$(sed -n 's/^SESSION_MIN_ELAPSED_MS=//p' "$ENVF" | tail -1)
 CUR_MAX=$(sed -n 's/^SESSION_MAX_ELAPSED_MS=//p' "$ENVF" | tail -1)
-if [ "$CUR_MIN" = "80000" ] && [ "$CUR_MAX" = "300000" ]; then
-  cp -a "$ENVF" "$ENVF.bak.$(date +%Y%m%d%H%M%S)"
-  sed -i 's/^SESSION_MIN_ELAPSED_MS=80000$/SESSION_MIN_ELAPSED_MS=2000/;
-          s/^SESSION_MAX_ELAPSED_MS=300000$/SESSION_MAX_ELAPSED_MS=900000/' "$ENVF"
-  ok "replay window widened for levels (was 80s/300s, now 2s/900s; .env backed up)"
-else
-  ok "replay window ${CUR_MIN:-unset}/${CUR_MAX:-unset} — left as is"
+WANT_MIN=2000
+WANT_MAX=1800000
+CHANGED=0
+backup_env() { [ "$CHANGED" = "0" ] && cp -a "$ENVF" "$ENVF.bak.$(date +%Y%m%d%H%M%S)"; CHANGED=1; }
+
+if [ "${CUR_MIN:-}" = "80000" ]; then
+  backup_env
+  sed -i "s/^SESSION_MIN_ELAPSED_MS=80000$/SESSION_MIN_ELAPSED_MS=$WANT_MIN/" "$ENVF"
+  ok "floor 80s -> ${WANT_MIN}ms (it was rejecting every run that ended early)"
+fi
+case "${CUR_MAX:-}" in
+  300000|900000)
+    backup_env
+    sed -i "s/^SESSION_MAX_ELAPSED_MS=$CUR_MAX\$/SESSION_MAX_ELAPSED_MS=$WANT_MAX/" "$ENVF"
+    ok "ceiling ${CUR_MAX}ms -> ${WANT_MAX}ms (a thirty-level run is 990s of play)"
+    ;;
+esac
+[ "$CHANGED" = "0" ] && ok "replay window ${CUR_MIN:-unset}/${CUR_MAX:-unset} — left as is"
+
+# A cold worker's first replay of a full-length run measured 750ms. Two seconds was set for
+# a game a third of this length.
+CUR_TO=$(sed -n 's/^REPLAY_TIMEOUT_MS=//p' "$ENVF" | tail -1)
+if [ "${CUR_TO:-}" = "2000" ]; then
+  sed -i 's/^REPLAY_TIMEOUT_MS=2000$/REPLAY_TIMEOUT_MS=5000/' "$ENVF"
+  ok "replay timeout 2s -> 5s"
 fi
 
 # If this deploy changed gameplay, ENGINE_VERSION must have been bumped with it — a tape

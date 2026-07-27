@@ -63,6 +63,12 @@ const schema = z.object({
   REPLAY_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   REPLAY_WORKERS: z.coerce.number().int().positive().max(16).default(2),
 
+  /**
+   * Enables GET /admin/stats. Unset, the endpoint answers 501 rather than existing with a
+   * default token — a guessable admin door is worse than no door.
+   */
+  ADMIN_TOKEN: z.string().min(24).optional(),
+
   /** Rate limits. */
   SESSION_START_PER_HOUR_PLAYER: z.coerce.number().int().positive().default(20),
   SESSION_START_PER_HOUR_IP: z.coerce.number().int().positive().default(60),

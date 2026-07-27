@@ -209,3 +209,58 @@ export const healthReply = z.object({
   db: z.boolean(),
   redis: z.boolean(),
 });
+
+/* ── replay ────────────────────────────────────────────────────────────────── */
+
+export const replayParams = z.object({ sessionId: z.string().min(1).max(64) });
+
+export const replayReply = z.object({
+  sessionId: z.string(),
+  name: z.string(),
+  config: z.object({
+    seed: z.number().int(),
+    mapId: z.string(),
+    charId: z.string(),
+    handicap: z.number(),
+    engineVersion: z.number().int(),
+  }),
+  score: z.number().int(),
+  level: z.number().int(),
+  candles: z.number().int(),
+  bestMult: z.number().int(),
+  endReason: z.string().nullable(),
+  playedAt: z.string(),
+  inputs: inputTapeSchema,
+});
+
+/* ── admin ─────────────────────────────────────────────────────────────────── */
+
+export const adminStatsQuery = z.object({
+  hours: z.coerce.number().int().min(1).max(720).default(24),
+});
+
+export const adminStatsReply = z.object({
+  hours: z.number().int(),
+  players: z.number().int(),
+  newPlayers: z.number().int(),
+  sessions: z.object({
+    started: z.number().int(),
+    submitted: z.number().int(),
+    rejected: z.number().int(),
+    expired: z.number().int(),
+    abandoned: z.number().int(),
+    open: z.number().int(),
+  }),
+  rejectRate: z.number(),
+  completionRate: z.number(),
+  rejectReasons: z.array(z.object({ reason: z.string(), count: z.number().int() })),
+  scores: z.object({
+    avg: z.number().int(),
+    max: z.number().int(),
+    avgLevel: z.number(),
+    maxLevel: z.number().int(),
+  }),
+  lastDailyClose: z
+    .object({ day: z.string(), entrants: z.number().int(), paid: z.number().int() })
+    .nullable(),
+});

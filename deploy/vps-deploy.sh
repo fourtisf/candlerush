@@ -278,6 +278,8 @@ ok "connected as $DB_USER over TCP on port $DB_PORT"
 
 say "Writing configuration"
 JWT_SECRET=$(openssl rand -hex 32)
+# Guards GET /admin/stats, which is how anyone finds out that scoring has stopped working.
+ADMIN_TOKEN=$(openssl rand -hex 24)
 
 # Pick an empty Redis database. Candle Rush's keys are prefixed (player:, lb:, siwe:, rl:)
 # so a collision is unlikely, but sharing db 0 with another app means one FLUSHDB takes
@@ -313,6 +315,8 @@ SIWE_STATEMENT=Sign in to Candle Rush.
 
 RHC_CHAIN_ID=$RHC_CHAIN_ID
 RHC_RPC_URL=${RHC_RPC_URL:-}
+
+ADMIN_TOKEN=$ADMIN_TOKEN
 
 SESSION_MIN_ELAPSED_MS=2000
 SESSION_MAX_ELAPSED_MS=900000
