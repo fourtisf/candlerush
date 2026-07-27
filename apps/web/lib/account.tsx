@@ -68,7 +68,7 @@ function fromGuest(g: GuestProfile): Account {
     mode: 'guest',
     ready: true,
     name: g.name,
-    named: g.name.trim().length > 0,
+    named: g.named,
     balance: g.balance,
     chars: g.chars,
     maps: g.maps,
@@ -155,7 +155,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           setBusy(false);
         }
       }
-      mutateGuest((g) => ({ ...g, name: clean }));
+      mutateGuest((g) => ({ ...g, name: clean, named: true }));
       return true;
     },
     [player, mutateGuest, report],

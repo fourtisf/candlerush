@@ -15,6 +15,11 @@ const KEY = 'cr:guest:v1';
 
 export interface GuestProfile {
   name: string;
+  /**
+   * Whether the player chose this name. Absent on profiles saved before a name was
+   * required, which is what `loadGuest` infers below.
+   */
+  named: boolean;
   balance: number;
   chars: CharId[];
   maps: MapId[];
@@ -29,6 +34,7 @@ export interface GuestProfile {
 
 export const emptyGuest = (): GuestProfile => ({
   name: '',
+  named: false,
   balance: 0,
   chars: [DEFAULT_CHAR],
   maps: [DEFAULT_MAP],
@@ -40,12 +46,28 @@ export const emptyGuest = (): GuestProfile => ({
   firstRun: true,
 });
 
+/**
+ * What the old build handed out when the name field was left empty:
+ * `TRADER${Math.floor(100 + Math.random() * 900)}`, so TRADER100 through TRADER999.
+ */
+const HANDED_OUT = /^TRADER\d{3}$/;
+
 export function loadGuest(): GuestProfile {
   if (typeof window === 'undefined') return emptyGuest();
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return emptyGuest();
-    return { ...emptyGuest(), ...(JSON.parse(raw) as Partial<GuestProfile>) };
+    const stored = JSON.parse(raw) as Partial<GuestProfile>;
+    const p = { ...emptyGuest(), ...stored };
+    // No `named` key means the profile predates the requirement. Infer it rather than
+    // bumping the storage key, which would take the player's balance with it — the same
+    // reasoning as the server-side backfill, and the same tell: a name matching the old
+    // hand-out was not chosen.
+    if (stored.named === undefined) {
+      const n = p.name.trim();
+      p.named = n.length > 0 && !HANDED_OUT.test(n);
+    }
+    return p;
   } catch {
     return emptyGuest();
   }
