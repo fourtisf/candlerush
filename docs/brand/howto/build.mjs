@@ -129,61 +129,59 @@ const foot = `<div class="foot"><span class="site">CANDLERUSH.FUN</span>
 
 /* ── the cards ─────────────────────────────────────────────────────────────── */
 
+/**
+ * Four cards, not seven.
+ *
+ * One mechanic per post is the tidy way to cut this up and the wrong way to post it:
+ * nobody reads seven images, and the reader who drops out at four never reaches the one
+ * thing that actually sells the game. So the six mechanics are grouped into how you move,
+ * how you score and how you survive — three cards that each carry two figures — and the
+ * choice keeps a card to itself because it is the hook.
+ */
 const STEPS = [
   {
-    file: '01-jump',
-    art: 'jump',
-    kick: 'TAP · SPACE · UP',
-    title: 'Tap. Then tap\nagain, mid-air.',
-    body: 'That is the entire control scheme. One tap jumps, a second tap in the air jumps again — and the second one is what clears the gaps the first cannot.',
+    file: '01-controls',
+    kick: 'TAP · SPACE · UP · SHIFT',
+    title: 'Two controls.\nThat is all of it.',
+    body: 'Tap to jump, and tap again in the air for a second jump. Flip to the side the tape is printing — on the wrong side, the candle you were about to land on is not there.',
+    arts: [
+      { name: 'jump', label: 'JUMP' },
+      { name: 'flip', label: 'FLIP', c: '#FF4A6B' },
+    ],
   },
   {
-    file: '02-flip',
-    art: 'flip',
-    kick: 'RIGHT SIDE · SHIFT',
-    title: 'Green wants you long.\nRed wants you short.',
-    body: 'Flip to the side the tape is printing. Stand on the wrong side of the trade and the candle you were about to land on is not there.',
-  },
-  {
-    file: '03-perfect',
-    art: 'perfect',
+    file: '02-scoring',
     kick: 'PRECISION PAYS',
-    title: 'Land on the front lip.',
-    body: 'The first few pixels of a candle pay a bonus and build the streak. The middle of the body just holds you up — it pays nothing.',
+    title: 'Land on the lip.\nThen do it again.',
+    body: 'The first few pixels of a candle pay a bonus; the middle only holds you up. Chain those landings and the multiplier climbs to ×10. Clip one and it halves rather than resetting.',
+    arts: [
+      { name: 'perfect', label: 'PERFECT', c: '#FFCE5C' },
+      { name: 'streak', label: 'STREAK', c: '#FFCE5C' },
+    ],
   },
   {
-    file: '04-streak',
-    art: 'streak',
-    kick: 'CLIMBS TO ×10',
-    title: 'Chain the landings.',
-    body: 'Every clean landing multiplies the next one. Clip a candle and the multiplier halves rather than resetting, so a bad step is a setback and not the end of the run.',
+    file: '03-survival',
+    kick: 'ONE SAVE · FINAL 0:05',
+    title: 'One free save,\nand a closing bell.',
+    body: 'The hedge catches you once per session and puts you back on the tape. In the last five seconds everything pays double — and the tape speeds up to match.',
+    arts: [
+      { name: 'hedge', label: 'HEDGE', c: '#6FB4FF' },
+      { name: 'bell', label: 'BELL', c: '#FFCE5C' },
+    ],
   },
   {
-    file: '05-hedge',
-    art: 'hedge',
-    kick: 'ONE PER SESSION',
-    title: 'The hedge catches\nyou once.',
-    body: 'Liquidation takes the hedge instead of you and puts you back on the tape. One per session. After that the next mistake is the last one.',
-  },
-  {
-    file: '06-bell',
-    art: 'bell',
-    kick: 'FINAL 0:05',
-    title: 'The last five seconds\npay double.',
-    body: 'The tape speeds up and everything is worth twice as much. The end of a level is where the money is, and it is also where the level is hardest.',
-  },
-  {
-    file: '07-bank-or-push',
-    art: 'choice',
+    file: '04-bank-or-push',
     kick: 'EVERY 25 SECONDS',
     title: 'Bank it, or push.',
-    body: 'Clear a level and the game stops and asks. Take it and the session ends with the money banked. Push and the next level is faster, with more holes — and pays 25% more. Say nothing and it pushes for you.',
+    body: 'Clear a level and the game stops and asks. Take it and the session ends with the money banked. Push and the next level is faster and pays 25% more. Say nothing and it pushes for you.',
     accent: '#22E6A0',
+    arts: [{ name: 'choice' }],
   },
 ];
 
-const stepCard = (s, i) =>
-  shell(
+const stepCard = (s, i) => {
+  const solo = s.arts.length === 1;
+  return shell(
     i + 3,
     `<div class="head">${WORDMARK}<div class="step">${String(i + 1).padStart(2, '0')} / ${String(STEPS.length).padStart(2, '0')}</div></div>
      <div class="mid">
@@ -192,14 +190,27 @@ const stepCard = (s, i) =>
          <h1>${s.title.replace(/\n/g, '<br>')}</h1>
          <p>${s.body}</p>
        </div>
-       <div class="panel fig">${figure(s.art, 430)}</div>
+       <div class="figs">
+         ${s.arts
+           .map(
+             (a) => `<div class="panel fig">
+             ${figure(a.name, solo ? 420 : 330)}
+             ${a.label ? `<div class="flab"${a.c ? ` style="color:${a.c}"` : ''}>${a.label}</div>` : ''}
+           </div>`,
+           )
+           .join('')}
+       </div>
      </div>
      ${foot}`,
-    `.mid{flex:1;display:flex;align-items:center;gap:70px;padding:34px 0 30px}
+    `.mid{flex:1;display:flex;align-items:center;gap:64px;padding:30px 0 26px}
      .txt{flex:1;min-width:0}
      .txt h1{margin:26px 0 30px}
-     .fig{width:520px;height:340px;flex:0 0 auto;display:grid;place-items:center}`,
+     .txt p{max-width:700px}
+     .figs{width:520px;flex:0 0 auto;display:flex;flex-direction:column;gap:20px}
+     .fig{position:relative;height:${solo ? 340 : 268}px;display:grid;place-items:center}
+     .flab{position:absolute;left:26px;top:20px;font-size:13px;letter-spacing:.26em;color:#22E6A0}`,
   );
+};
 
 /* The one that has to work on its own: everything at a glance, for a pinned post. */
 const TILES = [

@@ -1,12 +1,27 @@
 # How to play — banners
 
-Eight images at **1600×900**. That is 16:9, which is what X crops an in-feed image to;
+Five images at **1600×900**. That is 16:9, which is what X crops an in-feed image to;
 anything else gets cropped for you, and usually through the headline.
 
 | File | Use |
 |---|---|
 | `00-how-to-play.png` | The whole game on one image. Pin it. |
-| `01-jump.png` … `07-bank-or-push.png` | A thread, one mechanic per post, in order. |
+| `01-controls.png` | Jump and flip. |
+| `02-scoring.png` | The lip, and the streak it builds. |
+| `03-survival.png` | The hedge, and the closing bell. |
+| `04-bank-or-push.png` | The choice. |
+
+`01`–`04` are a thread, in that order.
+
+### Why four and not seven
+
+One mechanic per card is the tidy way to cut this up and the wrong way to post it. Nobody
+reads seven images, and a reader who drops out at four never reaches the one thing that
+actually sells the game — so the six mechanics are grouped into how you move, how you
+score and how you survive, two figures to a card, and the choice keeps a card to itself
+because it is the hook.
+
+Adding a card means taking one away.
 
 ## Rebuilding
 
