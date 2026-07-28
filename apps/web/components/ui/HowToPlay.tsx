@@ -42,14 +42,19 @@ function Flip() {
 }
 
 function Perfect() {
+  // Labelled, unlike the others: without them this is a cream square beside a gold stripe,
+  // and which part of the candle pays — the one thing it has to teach — is left to guess.
   return (
     <svg viewBox="0 0 120 64" aria-hidden="true">
-      <rect x="34" y="24" width="52" height="34" rx="7" fill="#4A4436" />
-      <rect x="34" y="24" width="12" height="34" rx="6" fill="#FFCE5C" />
-      <rect x="30" y="2" width="20" height="18" rx="5" fill="#FFF4E8" />
-      <path d="M40 20v2" stroke="#FFCE5C" strokeWidth="3" {...S} />
-      <text x="92" y="20" fill="#FFCE5C" fontSize="13" fontFamily="monospace">
-        +
+      <rect x="30" y="26" width="70" height="30" rx="7" fill="#4A4436" />
+      <rect x="30" y="26" width="13" height="30" rx="6" fill="#FFCE5C" />
+      <rect x="26" y="2" width="20" height="18" rx="5" fill="#FFF4E8" />
+      <path d="M36 21v4" stroke="#FFCE5C" strokeWidth="2.4" strokeDasharray="1 4" {...S} />
+      <text x="36" y="63" fill="#FFCE5C" fontSize="9" textAnchor="middle" fontFamily="monospace">
+        LIP
+      </text>
+      <text x="74" y="63" fill="rgba(255,244,232,.4)" fontSize="9" textAnchor="middle" fontFamily="monospace">
+        BODY
       </text>
     </svg>
   );
@@ -92,14 +97,18 @@ function Hedge() {
 }
 
 function Bell() {
+  // The bar is the level, with the lit slice at the end. Two numbers on their own do not
+  // say *when* — the bar is what makes it the end of something.
   return (
     <svg viewBox="0 0 120 64" aria-hidden="true">
-      <text x="8" y="40" fill="#FFCE5C" fontSize="26" fontFamily="monospace">
+      <text x="6" y="32" fill="#FFCE5C" fontSize="24" fontFamily="monospace">
         0:05
       </text>
-      <text x="82" y="40" fill="#FFCE5C" fontSize="24" fontFamily="monospace">
+      <text x="88" y="32" fill="#FFCE5C" fontSize="22" fontFamily="monospace">
         ×2
       </text>
+      <rect x="6" y="44" width="108" height="7" rx="3.5" fill="#FFCE5C" opacity=".17" />
+      <rect x="92" y="44" width="22" height="7" rx="3.5" fill="#FFCE5C" />
     </svg>
   );
 }
