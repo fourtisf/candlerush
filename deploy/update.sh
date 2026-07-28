@@ -64,6 +64,12 @@ if [ -f "$WEBENV" ]; then
   DOMAIN_GUESS=$(sed -n 's#^NEXT_PUBLIC_SIWE_URI=##p' "$WEBENV" | tail -1)
   [ -n "${DOMAIN_GUESS:-}" ] && upsert NEXT_PUBLIC_SITE_URL "$DOMAIN_GUESS" "$WEBENV"
   if [ -n "${CONTRACT_ADDRESS:-}" ]; then
+    # Checked before it is written, because this is the one string on the site people copy
+    # in order to send money somewhere. A typo here does not fail — it publishes, and the
+    # loss lands on whoever trusted the page.
+    if ! printf '%s' "$CONTRACT_ADDRESS" | grep -qE '^0x[0-9a-fA-F]{40}$'; then
+      die "CONTRACT_ADDRESS is not a 20-byte hex address: $CONTRACT_ADDRESS"
+    fi
     upsert NEXT_PUBLIC_CONTRACT_ADDRESS "$CONTRACT_ADDRESS" "$WEBENV"
     ok "contract address set to $CONTRACT_ADDRESS"
   fi

@@ -9,7 +9,17 @@ import { useEffect, useState } from 'react';
  * code change. Until it is set the chip reads COMING SOON and copies that — a chip that
  * silently copies nothing is worse than one that copies the honest answer.
  */
-const CONTRACT = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? '').trim();
+/**
+ * Shape-checked before it is shown.
+ *
+ * This is the one string on the site that people copy in order to send money somewhere, so
+ * a half-pasted or truncated value must not reach the screen wearing a COPY button. If it
+ * is not twenty bytes of hex, the chip goes back to reading COMING SOON — the deploy script
+ * refuses a malformed address as well, and between the two the chip is either right or
+ * absent.
+ */
+const RAW = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? '').trim();
+const CONTRACT = /^0x[0-9a-fA-F]{40}$/.test(RAW) ? RAW : '';
 const PLACEHOLDER = 'COMING SOON';
 
 /**
@@ -65,7 +75,16 @@ export function ContractAddress() {
       aria-label={live ? `Copy contract address ${value}` : 'Contract address coming soon'}
     >
       <span className="k1">CA</span>
-      <span className={`v${live ? '' : ' soon'}`}>{value}</span>
+      {/* Head and tail, at every width.
+          The panel is capped at 450px, so forty-two characters plus the CA label and the
+          copy button do not fit on a desktop either — left alone, the row ellipsised and
+          took the tail with it. The tail is half of what anyone checks an address against,
+          so this drops the middle instead, which is the form every explorer uses and the
+          form people actually compare. The button still copies all forty-two, and the full
+          address is in the aria-label for anything reading the page aloud. */}
+      <span className={`v${live ? '' : ' soon'}`}>
+        {live ? `${value.slice(0, 8)}…${value.slice(-6)}` : value}
+      </span>
       <span className="cp">
         {state === 'done' ? (
           <>

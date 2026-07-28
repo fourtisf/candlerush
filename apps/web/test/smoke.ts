@@ -154,6 +154,27 @@ async function main(): Promise<void> {
   }));
   await page.screenshot({ path: `${SHOTS}/5-reload.png` });
 
+  /* The contract address is the one string on this page that people copy in order to send
+   * money somewhere, so two things have to hold whatever it is set to: what is on screen
+   * must be fully legible — never cut off by the width of its own box — and pressing it
+   * must put the complete configured value on the clipboard, not the shortened form the
+   * chip displays. */
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const chipFits = await page.evaluate(() => {
+    const v = document.querySelector('.scr.on .ca .v');
+    if (!(v instanceof HTMLElement)) return false;
+    const r = document.createRange();
+    r.selectNodeContents(v);
+    return Math.ceil(r.getBoundingClientRect().width) <= Math.ceil(v.clientWidth) + 1;
+  });
+  await page.click('.scr.on .ca');
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const shown = front.ca;
+  // Either the chip shows the whole thing, or it shows head…tail of what it copies.
+  const [head = '', tail = ''] = shown.split('…');
+  const copiedMatches =
+    copied === shown || (!!tail && copied.startsWith(head) && copied.endsWith(tail));
+
   // And one tap from there is the hub, with the balance the run just earned.
   let backInside = false;
   try {
@@ -185,6 +206,8 @@ async function main(): Promise<void> {
     ['a returning player is greeted, not asked', !seen.has('ASKED TO TYPE A NAME'), front.greeting || 'no greeting'],
     ['the front page carries the mark and the CA', front.logo && !!front.ca, `logo ${front.logo} · CA ${front.ca || 'missing'}`],
     ['the X account is linked', front.x === X_URL, front.x],
+    ['the CA chip is not cut off', chipFits, shown],
+    ['pressing it copies the whole address', copiedMatches, `shows ${shown} · copies ${copied}`],
     ['one tap from there is the hub', backInside, backInside ? 'entered' : 'never reached the balance'],
     ['no page or console errors', problems.length === 0, problems.join(' | ') || 'clean'],
   ];

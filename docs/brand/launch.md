@@ -1,10 +1,18 @@
 # Launch copy
 
-For the day the contract goes live. Fill in two things before posting:
+For the day the contract goes live. One thing left to fill in: `$TICKER`.
 
-- `$TICKER` — the ticker.
-- `<CA>` — the contract address. X counts an address as its full length, not the flat 23 it
-  gives a URL, so the counts below already reserve 42 characters for it.
+The contract address is in:
+
+```
+0xFd0030E7A1e3889a2Fd061311Db6180099f02d8C
+```
+
+**Copy it exactly.** The mixed case is the EIP-55 checksum — it has been verified, and it is
+what lets a wallet catch a typo. Lowercase it and that protection is gone.
+
+X counts an address as its full 42 characters, not the flat 23 it gives a URL, and every
+post below is measured with that included.
 
 Everything here is written to be true on the day it is posted. That is not a moral
 position, it is a practical one: the first thing a stranger does with a launch post is look
@@ -17,7 +25,7 @@ in the thread earns.
 
 > $TICKER is live.
 >
-> CA: `<CA>`
+> CA: `0xFd0030E7A1e3889a2Fd061311Db6180099f02d8C`
 >
 > Candle Rush is an endless runner where the terrain is a candlestick chart. It has been
 > playable at candlerush.fun this whole time — free, no wallet, no sign-up.
@@ -36,7 +44,7 @@ Four posts. Attach `howto/00-how-to-play.png` to the first.
 
 ### 1
 
-> $TICKER is live. CA: `<CA>`
+> $TICKER is live. CA: `0xFd0030E7A1e3889a2Fd061311Db6180099f02d8C`
 >
 > Most tokens launch with a promise. This one launches with a game you can play in the next
 > ten seconds. Free, no wallet.
@@ -69,7 +77,7 @@ Four posts. Attach `howto/00-how-to-play.png` to the first.
 > seconds that pays double.
 >
 > Play free: candlerush.fun
-> CA: `<CA>`
+> CA: `0xFd0030E7A1e3889a2Fd061311Db6180099f02d8C`
 
 ---
 
@@ -77,7 +85,7 @@ Four posts. Attach `howto/00-how-to-play.png` to the first.
 
 **To "ca?"** — you will get this a hundred times. Keep it one line, no pitch.
 
-> `<CA>`
+> `0xFd0030E7A1e3889a2Fd061311Db6180099f02d8C`
 >
 > Game's at candlerush.fun if you want to see what it's for.
 

@@ -183,6 +183,11 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   user-select:text;-webkit-user-select:text}
 .ca .v.soon{color:var(--dim);letter-spacing:.2em}
+/* The address is shortened in the component, not here — the panel is 450px at its widest,
+   so there is no screen on which all forty-two characters fit beside the label and the
+   button. Given a choice between cutting the middle and cutting the tail, cut the middle:
+   the tail is half of what anyone checks an address against. */
+.ca .v{letter-spacing:.14em}
 .ca .cp{display:flex;align-items:center;gap:6px;font-size:8.5px;letter-spacing:.18em;
   color:var(--dim);flex:0 0 auto}
 .ca .cp b{font-weight:400}
