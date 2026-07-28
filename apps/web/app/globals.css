@@ -231,6 +231,16 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
 .back b{font-family:var(--D);font-weight:800;font-size:22px;letter-spacing:-.02em;
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .back .l2{font-size:8.5px;letter-spacing:.18em;color:var(--dim)}
+
+/* The account. A footer, not a call to action — it sits below the last instruction and
+   only warms up when reached for. */
+.xl{display:inline-flex;align-items:center;gap:8px;margin:14px auto 0;padding:8px 15px;
+  border-radius:99px;border:1px solid var(--edge);color:var(--dim);text-decoration:none;
+  font-size:8.5px;letter-spacing:.2em;transition:.15s}
+.xl svg{width:11px;height:11px;fill:currentColor}
+.xl b{font-weight:400}
+.xl:hover{color:var(--ink);border-color:rgba(255,244,232,.34);background:rgba(255,244,232,.06)}
+.xl:active{transform:scale(.97)}
 .scr.boot .logo{animation:boot 1.7s ease-in-out infinite}
 @keyframes boot{0%,100%{opacity:.55}50%{opacity:1}}
 
@@ -252,6 +262,7 @@ kbd{font-size:8.5px;background:rgba(255,244,232,.1);border:1px solid var(--edge)
   .lede{margin:9px auto 13px;font-size:9.5px;line-height:1.7;max-width:270px}
   .ca{margin-bottom:11px;padding:7px 10px 7px 11px}
   .back{padding:9px 14px}
+  .xl{margin-top:9px;padding:6px 12px}
   .back b{font-size:18px}
   input[type=text]{padding:11px 14px;font-size:15px}
   .wal{padding:10px 13px;margin-top:8px}

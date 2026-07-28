@@ -11,6 +11,9 @@
  */
 import { existsSync, mkdirSync } from 'node:fs';
 import { chromium, type Page } from 'playwright';
+// Compared against the component's own constant, so a typo in the handle fails here
+// rather than sending everyone who taps it to a page that does not exist.
+import { X_URL } from '../components/ui/XLink';
 
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 const SHOTS = process.env.SHOT_DIR ?? '/tmp/candlerush-shots';
@@ -147,6 +150,7 @@ async function main(): Promise<void> {
     logo: !!document.querySelector('.scr.on .logo'),
     ca: (document.querySelector('.scr.on .ca .v')?.textContent ?? '').trim(),
     greeting: (document.querySelector('.scr.on .back b')?.textContent ?? '').trim(),
+    x: document.querySelector<HTMLAnchorElement>('.scr.on a.xl')?.href ?? 'missing',
   }));
   await page.screenshot({ path: `${SHOTS}/5-reload.png` });
 
@@ -180,6 +184,7 @@ async function main(): Promise<void> {
     ['a reload opens on the front page', seen.has('front page, greeted'), reloadPath],
     ['a returning player is greeted, not asked', !seen.has('ASKED TO TYPE A NAME'), front.greeting || 'no greeting'],
     ['the front page carries the mark and the CA', front.logo && !!front.ca, `logo ${front.logo} · CA ${front.ca || 'missing'}`],
+    ['the X account is linked', front.x === X_URL, front.x],
     ['one tap from there is the hub', backInside, backInside ? 'entered' : 'never reached the balance'],
     ['no page or console errors', problems.length === 0, problems.join(' | ') || 'clean'],
   ];

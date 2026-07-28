@@ -9,6 +9,7 @@ import { ContractAddress } from './ContractAddress';
 import { StakePicker } from './StakePicker';
 import { WalletButton } from './WalletButton';
 import { Wordmark } from './Wordmark';
+import { XLink } from './XLink';
 
 /* ── profile ───────────────────────────────────────────────────────────────── */
 
@@ -147,6 +148,7 @@ export function ProfileScreen({ on, onEnter, onError }: { on: boolean; onEnter: 
           </button>
         )}
         <div className="keys">A WALLET IS OPTIONAL WHILE YOU PLAY LOCALLY</div>
+        <XLink />
       </div>
     </section>
   );
